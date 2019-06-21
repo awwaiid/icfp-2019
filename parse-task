@@ -1,0 +1,52 @@
+#!/usr/bin/env perl
+
+# (0,0),(10,0),(10,10),(0,10)#(0,0)#(4,2),(6,2),(6,7),(4,7);(5,8),(6,8),(6,9),(5,9)#B(0,1);B(1,1);F(0,2);F(1,2);L(0,3);X(0,9)
+#
+# a contour map of the mine,
+# an initial location of the worker-wrapper inside the mine,
+# a (possibly empty) list of obstacles separated by semicolons,
+# a (possibly empty) list of boosters and their locations separated by semicolons.
+
+use v5.20;
+use JSON::XS;
+my $file;
+
+{
+  local $\;
+  $file = <>;
+}
+
+my ($contour, $initial_loc, $obstacles, $boosters) = split(/#/, $file);
+
+my @contours = split(/\),\(/, $contour);
+my @contour_coords;
+foreach my $c (@contours) {
+  $c =~ /(\d+),(\d+)/;
+  my ($x, $y) = ($1, $2);
+  push @contour_coords, [$x, $y];
+}
+
+my (@loc) = $initial_loc =~ /(\d+),(\d+)/;
+
+my @obstacles = split(/\),\(/, $obstacles);
+my @obstacle_coords;
+foreach my $c (@obstacles) {
+  $c =~ /(\d+),(\d+)/;
+  my ($x, $y) = ($1, $2);
+  push @obstacle_coords, [$x, $y];
+}
+
+my @boosters = split(/\),\(/, $boosters);
+my @booster_coords;
+foreach my $c (@boosters) {
+  $c =~ /(\d+),(\d+)/;
+  my ($x, $y) = ($1, $2);
+  push @booster_coords, [$x, $y];
+}
+
+say encode_json {
+  contour => [@contour_coords],
+  initial_loc => [@loc],
+  obstacles => [@obstacle_coords],
+  boosters => [@booster_coords],
+};
