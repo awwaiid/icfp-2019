@@ -1,5 +1,0 @@
-"Rule: ocaml: ml & cmi -> cmx & o (%=engine )": "\000S\255_\233\021L,5\172f\197\219\254\198\240"
-"Rule: ocaml dependencies ml (%=engine )": "H\138J\157\170\151\001\214\186\147\152g^Ffs"
-"Rule: ocaml: cmx* & o* -> native (%=engine )": "\185}i\173\129\012&\156\243\184\223\190|]\146\007"
-"Rule: ocaml: ml -> cmo & cmi (%=engine )": "\207\235\222\129\163\240A\220\254P\183n\145K\153\227"
-"Resource: /home/awwaiid/icfp-2019/game_engine/engine.ml": "\016{|rC3\203\012\011\178\249 E\202\rt"
