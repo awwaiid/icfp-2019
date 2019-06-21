@@ -1,0 +1,7 @@
+#!/bin/bash
+
+DATE=$(date +"%Y%m%d%H%M%S");
+cd solutions/
+mv solutions.zip solutions-$DATE.zip
+zip solutions.zip *.sol
+curl -F "private_id=c0ee2bce4dd2599e2b758b18" -F "file=@solutions.zip" https://monadic-lab.org/submit
