@@ -22,31 +22,37 @@ my @contours = split(/\),\(/, $contour);
 my @contour_coords;
 foreach my $c (@contours) {
   $c =~ /(\d+),(\d+)/;
-  my ($x, $y) = ($1, $2);
+  my ($x, $y) = (int $1, int $2);
   push @contour_coords, [$x, $y];
 }
 
 my (@loc) = $initial_loc =~ /(\d+),(\d+)/;
+@loc = map { int($_) } @loc;
 
-my @obstacles = split(/\),\(/, $obstacles);
-my @obstacle_coords;
-foreach my $c (@obstacles) {
-  $c =~ /(\d+),(\d+)/;
-  my ($x, $y) = ($1, $2);
-  push @obstacle_coords, [$x, $y];
+my @obstacle_list = split(/;/, $obstacles);
+my @obsticals;
+foreach my $obst (@obstacle_list) {
+  my @obstacles = split(/\),\(/, $obst);
+  my @obstacle_coords;
+  foreach my $c (@obstacles) {
+    $c =~ /(\d+),(\d+)/;
+    my ($x, $y) = (int $1, int $2);
+    push @obstacle_coords, [$x, $y];
+  }
+  push @obsticals, [@obstacle_coords];
 }
 
-my @boosters = split(/\),\(/, $boosters);
+my @boosters = split(/;/, $boosters);
 my @booster_coords;
 foreach my $c (@boosters) {
-  $c =~ /(\d+),(\d+)/;
-  my ($x, $y) = ($1, $2);
-  push @booster_coords, [$x, $y];
+  $c =~ /(\w)\((\d+),(\d+)\)/;
+  my ($x, $y, $type) = (int $2, int $3, $1);
+  push @booster_coords, [$x, $y, $type];
 }
 
 say encode_json {
   contour => [@contour_coords],
   initial_loc => [@loc],
-  obstacles => [@obstacle_coords],
+  obstacles => [@obsticals],
   boosters => [@booster_coords],
 };
