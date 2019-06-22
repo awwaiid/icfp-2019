@@ -347,21 +347,6 @@ let record_action game_state action =
   let action_string = game_state.action_string in
   { game_state with action_string = action_string ^ action }
 
-let perform_action cmd_json game_state =
-    let action = cmd_json |> member "action" |> to_string in
-    let game_state = (match action with
-    | "W" -> perform_action_move_up game_state 0
-    | "S" -> perform_action_move_down game_state 0
-    | "A" -> perform_action_move_left game_state 0
-    | "D" -> perform_action_move_right game_state 0
-    | "Z" -> perform_action_do_nothing game_state 0
-    | "E" -> perform_action_turn_clockwise game_state 0
-    | "Q" -> perform_action_turn_counterclockwise game_state 0
-    | _ -> raise (Error ("Unknown or unimplemented action: " ^ action)))
-    in
-    let game_state = record_action game_state action in
-    game_state
-
 let covered_cells (x1, y1) (x2, y2) =
   let x1 = (float_of_int x1) +. 0.5 in
   let y1 = (float_of_int y1) +. 0.5 in
@@ -420,6 +405,41 @@ let update_wrapped_state_worker game_state worker =
 let update_wrapped_state game_state =
   List.fold_left update_wrapped_state_worker game_state game_state.workers
 
+let pick_up_boosters game_state worker_num =
+  let worker = List.nth game_state.workers worker_num in
+  let (x, y) = worker.position in
+  let (found_boosters, unfound_boosters) =
+    List.partition
+    (fun (a, b, booster) -> a == x && b == y && booster != X)
+    game_state.boosters in
+  let found_booster_locs = List.map (fun (a, b, booster) -> a,b) found_boosters in
+  let world = List.fold_left (fun world loc -> World.add loc Wrapped world) game_state.world found_booster_locs in
+  { game_state with
+    world = world;
+    boosters = unfound_boosters;
+    inventory = game_state.inventory @ (List.map (fun (a, b, booster) -> booster) found_boosters);
+  }
+
+
+
+let perform_action cmd_json game_state worker_num =
+    let action = cmd_json |> member "action" |> to_string in
+    let game_state = (match action with
+    | "W" -> perform_action_move_up game_state worker_num
+    | "S" -> perform_action_move_down game_state worker_num
+    | "A" -> perform_action_move_left game_state worker_num
+    | "D" -> perform_action_move_right game_state worker_num
+    | "Z" -> perform_action_do_nothing game_state worker_num
+    | "E" -> perform_action_turn_clockwise game_state worker_num
+    | "Q" -> perform_action_turn_counterclockwise game_state worker_num
+    | _ -> raise (Error ("Unknown or unimplemented action: " ^ action)))
+    in
+    let game_state = update_wrapped_state game_state in
+    let game_state = pick_up_boosters game_state worker_num in
+    let game_state = record_action game_state action in
+    game_state
+
+
 let main () =
 
   eprintf "started\n%!";
@@ -437,11 +457,12 @@ let main () =
     (match cmd with
     | "print_state" -> print_game_state !game_state
     | "get_state" -> print_game_state_json !game_state
-    | "action" -> game_state := perform_action cmd_json !game_state; print_game_state_json !game_state
+    | "action" ->
+        game_state := perform_action cmd_json !game_state 0;
+        print_game_state_json !game_state
     (* | "get_path" -> get_path_cmd cmd_json game_state *)
     | "exit" -> exit 0
     | _ -> raise (Error ("Unknown command: " ^ cmd)));
-    game_state := update_wrapped_state !game_state
   done
 
 let () = main ()
