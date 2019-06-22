@@ -437,6 +437,12 @@ let validate_location game_state worker_num =
       game_state
   with _ -> raise (Error "Invalid state")
 
+let check_for_win game_state =
+  if List.length (unwrapped_cells game_state.world) = 0 then
+    { game_state with status = "WIN" }
+  else
+    game_state
+
 let perform_action cmd_json game_state worker_num =
     let action = cmd_json |> member "action" |> to_string in
     let game_state = (match action with
@@ -453,8 +459,8 @@ let perform_action cmd_json game_state worker_num =
     let game_state = pick_up_boosters game_state worker_num in
     let game_state = validate_location game_state worker_num in
     let game_state = record_action game_state action in
+    let game_state = check_for_win game_state in
     game_state
-
 
 let main () =
 
