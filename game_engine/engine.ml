@@ -552,7 +552,7 @@ let main () =
     try
       let cmd_json = Stream.next command_stream in
       let cmd = cmd_json |> member "cmd" |> to_string in
-      eprintf "Processing cmd: %s\n%!" cmd;
+      (* eprintf "Processing cmd: %s\n%!" cmd; *)
       (match cmd with
       | "print_state" -> print_game_state !game_state
       | "get_state" -> ()
