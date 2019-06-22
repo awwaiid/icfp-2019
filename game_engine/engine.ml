@@ -137,8 +137,8 @@ let initialize_state command_stream =
 
   let world = ref (World.empty) in
 
-  for y = height downto 0 do
-    for x = 0 to width do
+  for y = height - 1 downto 0 do
+    for x = 0 to width - 1 do
       if List.exists (fun p -> inside_polygon p (x, y)) obstacles then begin
         world := World.add (x,y) Obstacle !world;
       end else if not (inside_polygon game_map (x, y)) then
@@ -161,8 +161,8 @@ let initialize_state command_stream =
   game_state
 
 let print_map world width height =
-	for y = height downto 0 do
-		for x = 0 to width do
+	for y = height - 1 downto 0 do
+		for x = 0 to width - 1 do
 			printf "%s" (cell_to_string (World.find (x,y) world))
 		done;
 		printf "\n"
@@ -170,8 +170,8 @@ let print_map world width height =
 
 let game_state_to_string state =
   let s = ref "" in
-	for y = state.world_height downto 0 do
-		for x = 0 to state.world_width do
+	for y = state.world_height - 1 downto 0 do
+		for x = 0 to state.world_width - 1 do
       if state.bot_position = (x,y) then
         s := !s ^ (sprintf "!")
       else
@@ -183,9 +183,9 @@ let game_state_to_string state =
 
 let game_state_map_to_json state =
   let s = ref [] in
-	for x = 0 to state.world_width do
+	for x = 0 to state.world_width - 1 do
     let col = ref [] in
-    for y = 0 to state.world_height do
+    for y = 0 to state.world_height - 1 do
       col := !col @ [`String (cell_to_string (World.find (x,y) state.world))]
 		done;
     s := !s @ [ `List !col ]
