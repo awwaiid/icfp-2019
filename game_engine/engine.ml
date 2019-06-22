@@ -168,7 +168,24 @@ let print_map world width height =
 		printf "\n"
 	done
 
+let game_state_to_string state =
+  let s = ref "" in
+	for y = state.world_height downto 0 do
+		for x = 0 to state.world_width do
+      if state.bot_position = (x,y) then
+        s := !s ^ (sprintf "웃")
+      else
+        s := !s ^ (sprintf "%s" (cell_to_string (World.find (x,y) state.world)))
+		done;
+    s := !s ^ (sprintf "\n")
+  done;
+  !s
+
 let print_game_state state =
+  printf "%s" (game_state_to_string state)
+
+
+let game_state_to_json state =
 	for y = state.world_height downto 0 do
 		for x = 0 to state.world_width do
       if state.bot_position = (x,y) then
@@ -179,22 +196,24 @@ let print_game_state state =
 		printf "\n"
 	done
 
-(* let game_state_to_json state = *)
-(* 	for y = state.world_height downto 0 do *)
-(* 		for x = 0 to state.world_width do *)
-(*       if state.bot_position = (x,y) then *)
-(*         printf "웃" *)
-(*       else *)
-(*         printf "%s" (cell_to_string (World.find (x,y) state.world)) *)
-(* 		done; *)
-(* 		printf "\n" *)
-(* 	done *)
+let state_to_json state =
+  `Assoc [
+    "state_string", `String (game_state_to_string state);
+  ]
 
+let print_game_state_json state =
+  Yojson.Basic.to_channel stdout (state_to_json state);
+  printf "\n";
+  flush stdout
 
 let main () =
 
+  eprintf "started\n%!";
+
   let command_stream = Yojson.Basic.stream_from_channel stdin in
   let game_state = ref (initialize_state command_stream) in
+  printf "{\"status\": \"loaded\"}\n%!";
+  eprintf "read game state\n%!";
 
   while true do
     flush stdout;
@@ -202,6 +221,7 @@ let main () =
     let cmd = cmd_json |> member "cmd" |> to_string in
     match cmd with
     | "print_state" -> print_game_state !game_state
+    | "get_state" -> print_game_state_json !game_state
     | "exit" -> exit 0
     | _ -> raise (Error ("Unknown command: " ^ cmd))
   done
