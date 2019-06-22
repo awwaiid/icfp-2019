@@ -368,12 +368,14 @@ let covered_cells (x1, y1) (x2, y2) =
   !covered
 
 let is_transparent world (x, y) =
-  let cell = World.find (x, y) world in
-  match cell with
-	| Obstacle -> false
-	| Wall -> false
-  | Unwrapped -> true
-  | Wrapped -> true
+  try
+    let cell = World.find (x, y) world in
+    match cell with
+    | Obstacle -> false
+    | Wall -> false
+    | Unwrapped -> true
+    | Wrapped -> true
+  with Not_found -> true
 
 let is_visible world (x1, y1) (x2, y2) =
   let cells = covered_cells (x1, y1) (x2, y2) in
@@ -419,7 +421,6 @@ let pick_up_boosters game_state worker_num =
     boosters = unfound_boosters;
     inventory = game_state.inventory @ (List.map (fun (a, b, booster) -> booster) found_boosters);
   }
-
 
 
 let perform_action cmd_json game_state worker_num =
