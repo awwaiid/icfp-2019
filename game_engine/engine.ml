@@ -72,8 +72,26 @@ end)
       "time_left", `Int active_booster.time_left;
     ]
 
+  type direction = Up | Right | Down | Left
+  let direction_to_string = function
+    | Up -> "^"
+    | Right -> ">"
+    | Left -> "<"
+    | Down -> "v"
+  let direction_rotate_clockwise = function
+    | Up -> Right
+    | Right -> Down
+    | Down -> Left
+    | Left -> Up
+  let direction_rotate_counterclockwise = function
+    | Up -> Left
+    | Left -> Down
+    | Down -> Right
+    | Right -> Up
+
   type worker = {
     position: location;
+    direction: direction;
     active_boosters: active_booster list;
     manipulators: location list;
   }
@@ -83,12 +101,14 @@ end)
       "position", location_to_json worker.position;
       "active_boosters", `List ( List.map active_booster_to_json worker.active_boosters );
       "manipulators", `List ( List.map location_to_json worker.manipulators );
+      "direction", `String (direction_to_string worker.direction);
     ]
 
   let initial_worker position = {
     position = position;
     manipulators = [ (0,0); (1,0); (1,1); (1,-1) ];
     active_boosters = [];
+    direction = Right;
   }
 
 type game_state = {
@@ -217,11 +237,12 @@ let print_map world width height =
 
 let game_state_to_string state =
   let s = ref "" in
-  let bot_position = (List.hd state.workers).position in
+  let worker = List.hd state.workers in
+  let bot_position = worker.position in
 	for y = state.world_height - 1 downto 0 do
 		for x = 0 to state.world_width - 1 do
       if bot_position = (x,y) then
-        s := !s ^ (sprintf "!")
+        s := !s ^ (direction_to_string worker.direction)
       else if is_booster_at state.boosters (x,y) then
         s := !s ^ (booster_to_string (booster_at state.boosters (x,y)))
       else
@@ -311,6 +332,7 @@ let perform_action_turn_clockwise game_state worker_num =
   let worker = List.nth game_state.workers worker_num in
   let rotated_manipulators = List.map rotate_clockwise worker.manipulators in
   let worker = { worker with manipulators = rotated_manipulators } in
+  let worker = { worker with direction = direction_rotate_clockwise worker.direction } in
   let workers = set_elem game_state.workers worker_num worker in
   { game_state with workers = workers }
 
@@ -355,6 +377,10 @@ let update_wrapped_state_worker game_state worker =
 let update_wrapped_state game_state =
   List.fold_left update_wrapped_state_worker game_state game_state.workers
 
+(* let get_path_cmd cmd_json game_state = *)
+(*   let start_pos = cmd_json |> member "path_from" |> (fun n -> (index 0 n), (index 1 n) in *)
+  (* ... *)
+
 let main () =
 
   eprintf "started\n%!";
@@ -372,7 +398,8 @@ let main () =
     (match cmd with
     | "print_state" -> print_game_state !game_state
     | "get_state" -> print_game_state_json !game_state
-    | "action" -> perform_action cmd_json game_state; print_game_state_json !game_state
+    | "action" -> game_state := perform_action cmd_json !game_state; print_game_state_json !game_state
+    (* | "get_path" -> get_path_cmd cmd_json game_state *)
     | "exit" -> exit 0
     | _ -> raise (Error ("Unknown command: " ^ cmd)));
     game_state := update_wrapped_state !game_state
