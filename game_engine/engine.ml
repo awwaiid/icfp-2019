@@ -3,7 +3,6 @@ open Yojson.Basic.Util
 
 exception Error of string
 
-type location = int * int
 (* type game_map_t = location list *)
 (* type booster_location = booster_code * location *)
 (* type obstacles = game_map_t list *)
@@ -15,11 +14,15 @@ type location = int * int
 (*   boosters: boosters *)
 (* } *)
 
-type booster = B | F | L | X | R
+type location = int * int
+let location_to_json (x,y) = `List [ `Int x; `Int y ]
+
+type booster = B | F | L | X | R | C
 type booster_loc = int * int * booster
 
 let booster_to_string = function
   | B -> "B"
+  | C -> "C"
   | F -> "F"
   | L -> "L"
   | X -> "X"
@@ -32,6 +35,7 @@ let booster_loc_to_json booster_loc =
 
 let booster_of_string = function
   | "B" -> B
+  | "C" -> C
   | "F" -> F
   | "L" -> L
   | "X" -> X
@@ -41,7 +45,6 @@ let booster_of_string = function
 type cell =
   | Wall
   | Obstacle
-  | Booster of booster
   | Unwrapped
   | Wrapped
   | Teleport
@@ -49,7 +52,6 @@ type cell =
 let cell_to_string = function
 	| Obstacle -> "O"
 	| Wall -> "W"
-  | Booster b -> booster_to_string b
   | Unwrapped -> "-"
   | Wrapped -> "+"
   | Teleport -> "T"
@@ -59,6 +61,36 @@ module World = Map.Make(struct
   let compare = compare
 end)
 
+  type active_booster = {
+    booster: booster;
+    time_left: int;
+  }
+
+  let active_booster_to_json active_booster =
+    `Assoc [
+      "booster", booster_to_json active_booster.booster;
+      "time_left", `Int active_booster.time_left;
+    ]
+
+  type worker = {
+    position: location;
+    active_boosters: active_booster list;
+    manipulators: location list;
+  }
+
+  let worker_to_json worker =
+    `Assoc [
+      "position", location_to_json worker.position;
+      "active_boosters", `List ( List.map active_booster_to_json worker.active_boosters );
+      "manipulators", `List ( List.map location_to_json worker.manipulators );
+    ]
+
+  let initial_worker position = {
+    position = position;
+    manipulators = [ (0,0); (1,0); (1,1); (1,-1) ];
+    active_boosters = [];
+  }
+
 type game_state = {
   world: cell World.t;
   world_width: int;
@@ -67,6 +99,7 @@ type game_state = {
   inventory: booster list;
   boosters: booster_loc list;
   action_string: string;
+  workers: worker list;
 }
 
 let inventory_to_json inventory =
@@ -169,6 +202,7 @@ let initialize_state command_stream =
     boosters = boosters;
     inventory = [];
     action_string = "";
+    workers = [ initial_worker start_loc ];
   } in
 
   game_state
@@ -183,9 +217,10 @@ let print_map world width height =
 
 let game_state_to_string state =
   let s = ref "" in
+  let bot_position = (List.hd state.workers).position in
 	for y = state.world_height - 1 downto 0 do
 		for x = 0 to state.world_width - 1 do
-      if state.bot_position = (x,y) then
+      if bot_position = (x,y) then
         s := !s ^ (sprintf "!")
       else if is_booster_at state.boosters (x,y) then
         s := !s ^ (booster_to_string (booster_at state.boosters (x,y)))
@@ -210,18 +245,18 @@ let game_state_map_to_json state =
 let print_game_state state =
   printf "%s" (game_state_to_string state)
 
-let coord_to_json (x,y) = `List [ `Int x; `Int y ]
 
 let state_to_json state =
   `Assoc [
     "state_string", `String (game_state_to_string state);
-    "bot_position", coord_to_json state.bot_position;
+    "bot_position", location_to_json (List.hd state.workers).position;
     "map", game_state_map_to_json state;
     "map_width", `Int state.world_width;
     "map_height", `Int state.world_height;
     "inventory", inventory_to_json state.inventory;
     "boosters", `List ( List.map booster_loc_to_json state.boosters );
     "action_string", `String state.action_string;
+    "workers", `List ( List.map worker_to_json state.workers );
   ]
 
 let print_game_state_json state =
@@ -229,33 +264,68 @@ let print_game_state_json state =
   printf "\n";
   flush stdout
 
-let perform_action_move_up game_state =
-  let (x,y) = game_state.bot_position in
-  { game_state with bot_position = (x, y + 1) }
+let set_elem lst index new_value =
+  List.mapi (fun index' el -> if index = index' then new_value else el) lst
 
-let perform_action_move_down game_state =
-  let (x,y) = game_state.bot_position in
-  { game_state with bot_position = (x, y - 1) }
+let perform_action_move_up game_state worker_num =
+  let worker = List.nth game_state.workers worker_num in
+  let (x,y) = worker.position in
+  let worker = { worker with position = (x, y + 1) } in
+  let workers = set_elem game_state.workers worker_num worker in
+  { game_state with workers = workers }
 
-let perform_action_move_left game_state =
-  let (x,y) = game_state.bot_position in
-  { game_state with bot_position = (x - 1, y) }
+let perform_action_move_down game_state worker_num =
+  let worker = List.nth game_state.workers worker_num in
+  let (x,y) = worker.position in
+  let worker = { worker with position = (x, y - 1) } in
+  let workers = set_elem game_state.workers worker_num worker in
+  { game_state with workers = workers }
 
-let perform_action_move_right game_state =
-  let (x,y) = game_state.bot_position in
-  { game_state with bot_position = (x + 1, y) }
+let perform_action_move_left game_state worker_num =
+  let worker = List.nth game_state.workers worker_num in
+  let (x,y) = worker.position in
+  let worker = { worker with position = (x - 1, y) } in
+  let workers = set_elem game_state.workers worker_num worker in
+  { game_state with workers = workers }
+
+let perform_action_move_right game_state worker_num =
+  let worker = List.nth game_state.workers worker_num in
+  let (x,y) = worker.position in
+  let worker = { worker with position = (x + 1, y) } in
+  let workers = set_elem game_state.workers worker_num worker in
+  { game_state with workers = workers }
 
 let perform_action cmd_json game_state =
     let action = cmd_json |> member "action" |> to_string in
     let action_string = (!game_state).action_string in
     game_state := { !game_state with action_string = action_string ^ action };
     match action with
-    | "W" -> game_state := perform_action_move_up !game_state
-    | "S" -> game_state := perform_action_move_down !game_state
-    | "A" -> game_state := perform_action_move_left !game_state
-    | "D" -> game_state := perform_action_move_right !game_state
+    | "W" -> game_state := perform_action_move_up !game_state 0
+    | "S" -> game_state := perform_action_move_down !game_state 0
+    | "A" -> game_state := perform_action_move_left !game_state 0
+    | "D" -> game_state := perform_action_move_right !game_state 0
     | "Z" -> ()
     | _ -> raise (Error ("Unknown or unimplemented action: " ^ action))
+
+let manipulator_positions worker =
+  let (x,y) = worker.position in
+  List.map (fun (i,j) -> (x+i, y+j)) worker.manipulators
+
+(* Only wrap unwrapped locations, ignore the rest *)
+let update_location_wrapped world location =
+  try
+    if World.find location world = Unwrapped then
+      World.add location Wrapped world
+    else
+      world
+  with Not_found -> world
+
+let update_wrapped_state_worker game_state worker =
+  let updated_world = List.fold_left update_location_wrapped game_state.world (manipulator_positions worker) in
+  { game_state with world = updated_world }
+
+let update_wrapped_state game_state =
+  List.fold_left update_wrapped_state_worker game_state game_state.workers
 
 let main () =
 
@@ -270,12 +340,13 @@ let main () =
     flush stdout;
     let cmd_json = Stream.next command_stream in
     let cmd = cmd_json |> member "cmd" |> to_string in
-    match cmd with
+    (match cmd with
     | "print_state" -> print_game_state !game_state
     | "get_state" -> print_game_state_json !game_state
     | "action" -> perform_action cmd_json game_state; print_game_state_json !game_state
     | "exit" -> exit 0
-    | _ -> raise (Error ("Unknown command: " ^ cmd))
+    | _ -> raise (Error ("Unknown command: " ^ cmd)));
+    game_state := update_wrapped_state !game_state
   done
 
 let () = main ()
