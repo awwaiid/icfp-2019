@@ -15,6 +15,7 @@ my $file;
   local $\;
   $file = <>;
 }
+chomp $file;
 
 my ($contour, $initial_loc, $obstacles, $boosters) = split(/#/, $file);
 
