@@ -16,6 +16,22 @@ type location = int * int
 (* } *)
 
 type booster = B | F | L | X | R
+
+let booster_to_string = function
+  | B -> "B"
+  | F -> "F"
+  | L -> "L"
+  | X -> "X"
+  | R -> "R"
+
+let booster_of_string = function
+  | "B" -> B
+  | "F" -> F
+  | "L" -> L
+  | "X" -> X
+  | "R" -> R
+  | _ as s -> raise (Error ("Invalid Booster: " ^ s))
+
 type cell =
   | Wall
   | Obstacle
@@ -23,6 +39,14 @@ type cell =
   | Unwrapped
   | Wrapped
   | Teleport
+
+let cell_to_string = function
+	| Obstacle -> " "
+	| Wall -> "·"
+  | Booster b -> booster_to_string b
+  | Unwrapped -> "□"
+  | Wrapped -> "■"
+  | Teleport -> "T"
 
 module World = Map.Make(struct
   type t = location
@@ -37,6 +61,14 @@ type game_state = {
   inventory: booster list
 }
 
+let print_map world width height =
+	for y = height downto 0 do
+		for x = 0 to width do
+			printf "%s" (cell_to_string (World.find (x,y) world))
+		done;
+		printf "\n"
+	done
+
 let ray_intersects (ptx, pty) ((ix, iy), (jx, jy)) =
 	(
     ((iy <= pty) && (pty < jy))
@@ -47,6 +79,13 @@ let inside_polygon polygon pt =
   let shifted_polygon = (List.tl polygon) @ [List.hd polygon] in
   let polygon_pairs = List.combine polygon shifted_polygon in
   (List.length (List.filter (ray_intersects pt) polygon_pairs)) mod 2 == 1
+
+let is_booster_at boosters (x,y) =
+  List.exists (fun (a, b, booster) -> x == a && y == b) boosters
+
+let booster_at boosters (x,y) =
+  let (a, b, booster) = List.find (fun (a, b, booster) -> x == a && y == b) boosters in
+  booster
 
 let main () =
 
@@ -65,7 +104,7 @@ let main () =
         let x = index 0 n in
         let y = index 1 n in
         let t = index 2 n in
-        (to_int x, to_int y, to_string t)
+        (to_int x, to_int y, booster_of_string (to_string t))
     )
   in
 
@@ -94,40 +133,50 @@ let main () =
     )
   in
 
-  Dum.to_stdout game_map;
-  Dum.to_stdout boosters;
-  Dum.to_stdout start_loc;
-  Dum.to_stdout obstacles;
+  (* Dum.to_stdout game_map; *)
+  (* Dum.to_stdout boosters; *)
+  (* Dum.to_stdout start_loc; *)
+  (* Dum.to_stdout obstacles; *)
 
   let x_coords = List.map (fun (x,y) -> x) game_map in
   let width = List.fold_left max (List.hd x_coords) (List.tl x_coords) in
-  Dum.to_stdout width;
+  (* Dum.to_stdout width; *)
 
   let y_coords = List.map (fun (x,y) -> y) game_map in
   let height = List.fold_left max (List.hd y_coords) (List.tl y_coords) in
-  Dum.to_stdout height;
+  (* Dum.to_stdout height; *)
 
-  let initial_world = World.(empty |> add (2,3) "hello") in
-  Dum.to_stdout initial_world;
+  let world = ref (World.empty) in
+  (* Dum.to_stdout world; *)
 
-  Dum.to_stdout (inside_polygon [ (0,0); (0,10); (10,10); (10,0) ] (5,5));
-  Dum.to_stdout (inside_polygon [ (0,0); (0,10); (10,10); (10,0) ] (50,50));
-  Dum.to_stdout (inside_polygon [ (0,0); (0,10); (10,10); (10,0) ] (5,50));
+  let game_state = ref {
+    world = World.empty;
+    world_width = width;
+    world_height = height;
+    bot_position = start_loc;
+    inventory = []
+  } in
 
-  printf "\n\n";
+(* printf "\n\nGame state:"; *)
+(* Dum.to_stdout game_state; *)
+
+(*   printf "\n\n"; *)
 
   for y = height downto 0 do
     for x = 0 to width do
-      if List.exists (fun p -> inside_polygon p (x, y)) obstacles then
-        printf " "
+      if List.exists (fun p -> inside_polygon p (x, y)) obstacles then begin
+        world := World.add (x,y) Obstacle !world;
+      end else if not (inside_polygon game_map (x, y)) then
+				world := World.add (x,y) Wall !world
+			else if is_booster_at boosters (x,y) then
+				world := World.add (x,y) (Booster(booster_at boosters (x,y))) !world
       else
-        if inside_polygon game_map (x, y) then
-					printf "■"
-        else
-					printf "X"
-    done;
-    printf "\n"
-  done
+				world := World.add (x,y) Unwrapped !world
+    done
+  done;
+
+  print_map !world width height
+
 
   (* printf game_map *)
   (* printf "%s" game_map *)
