@@ -299,6 +299,28 @@ let perform_action_move_right game_state worker_num =
   let workers = set_elem game_state.workers worker_num worker in
   { game_state with workers = workers }
 
+let perform_action_do_nothing game_state worker_num =
+  let worker = List.nth game_state.workers worker_num in
+  let workers = set_elem game_state.workers worker_num worker in
+  { game_state with workers = workers }
+
+let rotate_clockwise (x,y) = (y, -x)
+let rotate_counterclockwise (x,y) = (-y, x)
+
+let perform_action_turn_clockwise game_state worker_num =
+  let worker = List.nth game_state.workers worker_num in
+  let rotated_manipulators = List.map rotate_clockwise worker.manipulators in
+  let worker = { worker with manipulators = rotated_manipulators } in
+  let workers = set_elem game_state.workers worker_num worker in
+  { game_state with workers = workers }
+
+let perform_action_turn_counterclockwise game_state worker_num =
+  let worker = List.nth game_state.workers worker_num in
+  let rotated_manipulators = List.map rotate_counterclockwise worker.manipulators in
+  let worker = { worker with manipulators = rotated_manipulators } in
+  let workers = set_elem game_state.workers worker_num worker in
+  { game_state with workers = workers }
+
 let perform_action cmd_json game_state =
     let action = cmd_json |> member "action" |> to_string in
     let action_string = (!game_state).action_string in
@@ -308,7 +330,9 @@ let perform_action cmd_json game_state =
     | "S" -> game_state := perform_action_move_down !game_state 0
     | "A" -> game_state := perform_action_move_left !game_state 0
     | "D" -> game_state := perform_action_move_right !game_state 0
-    | "Z" -> ()
+    | "Z" -> game_state := perform_action_do_nothing !game_state 0
+    | "E" -> game_state := perform_action_turn_clockwise !game_state 0
+    | "Q" -> game_state := perform_action_turn_counterclockwise !game_state 0
     | _ -> raise (Error ("Unknown or unimplemented action: " ^ action))
 
 let manipulator_positions worker =
