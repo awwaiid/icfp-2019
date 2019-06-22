@@ -24,6 +24,8 @@ let booster_to_string = function
   | X -> "X"
   | R -> "R"
 
+let booster_to_json booster = `String (booster_to_string booster)
+
 let booster_of_string = function
   | "B" -> B
   | "F" -> F
@@ -60,6 +62,9 @@ type game_state = {
   bot_position: location;
   inventory: booster list
 }
+
+let inventory_to_json inventory =
+  `List ( List.map booster_to_json inventory )
 
 let ray_intersects (ptx, pty) ((ix, iy), (jx, jy)) =
 	(
@@ -202,12 +207,41 @@ let state_to_json state =
     "state_string", `String (game_state_to_string state);
     "bot_position", coord_to_json state.bot_position;
     "map", game_state_map_to_json state;
+    "map_width", `Int state.world_width;
+    "map_height", `Int state.world_height;
+    "inventory", inventory_to_json state.inventory;
   ]
 
 let print_game_state_json state =
   Yojson.Basic.to_channel stdout (state_to_json state);
   printf "\n";
   flush stdout
+
+let perform_action_move_up game_state =
+  let (x,y) = game_state.bot_position in
+  { game_state with bot_position = (x, y + 1) }
+
+let perform_action_move_down game_state =
+  let (x,y) = game_state.bot_position in
+  { game_state with bot_position = (x, y - 1) }
+
+let perform_action_move_left game_state =
+  let (x,y) = game_state.bot_position in
+  { game_state with bot_position = (x - 1, y) }
+
+let perform_action_move_right game_state =
+  let (x,y) = game_state.bot_position in
+  { game_state with bot_position = (x + 1, y) }
+
+let perform_action cmd_json game_state =
+    let action = cmd_json |> member "action" |> to_string in
+    match action with
+    | "W" -> game_state := perform_action_move_up !game_state
+    | "S" -> game_state := perform_action_move_down !game_state
+    | "A" -> game_state := perform_action_move_left !game_state
+    | "D" -> game_state := perform_action_move_right !game_state
+    | "Z" -> ()
+    | _ -> raise (Error ("Unknown or unimplemented action: " ^ action))
 
 let main () =
 
@@ -225,6 +259,7 @@ let main () =
     match cmd with
     | "print_state" -> print_game_state !game_state
     | "get_state" -> print_game_state_json !game_state
+    | "action" -> perform_action cmd_json game_state; print_game_state_json !game_state
     | "exit" -> exit 0
     | _ -> raise (Error ("Unknown command: " ^ cmd))
   done
