@@ -98,26 +98,26 @@ end)
   let active_boosters_from_json json =
     json |> convert_each active_booster_from_json
 
-  type direction = Up | Right | Down | Left
+  type orientation = Up | Right | Down | Left
 
-  let direction_from_string = function
+  let orientation_from_string = function
     | "^" -> Up
     | ">" -> Right
     | "<" -> Left
     | "v" -> Down
     | _ -> Right
 
-  let direction_to_string = function
+  let orientation_to_string = function
     | Up -> "^"
     | Right -> ">"
     | Left -> "<"
     | Down -> "v"
-  let direction_rotate_clockwise = function
+  let orientation_rotate_clockwise = function
     | Up -> Right
     | Right -> Down
     | Down -> Left
     | Left -> Up
-  let direction_rotate_counterclockwise = function
+  let orientation_rotate_counterclockwise = function
     | Up -> Left
     | Left -> Down
     | Down -> Right
@@ -125,7 +125,7 @@ end)
 
   type worker = {
     position: location;
-    direction: direction;
+    orientation: orientation;
     active_boosters: active_booster list;
     manipulators: location list;
   }
@@ -135,7 +135,7 @@ end)
       "position", location_to_json worker.position;
       "active_boosters", `List ( List.map active_booster_to_json worker.active_boosters );
       "manipulators", `List ( List.map location_to_json worker.manipulators );
-      "direction", `String (direction_to_string worker.direction);
+      "orientation", `String (orientation_to_string worker.orientation);
     ]
 
 let boosters_from_json json =
@@ -147,7 +147,7 @@ let worker_from_json json =
     position = json |> member "position" |> location_from_json;
     active_boosters = json |> member "active_boosters" |> active_boosters_from_json;
     manipulators = json |> member "manipulators" |> convert_each location_from_json;
-    direction = json |> member "direction" |> to_string |> direction_from_string;
+    orientation = json |> member "orientation" |> to_string |> orientation_from_string;
   }
 
 let workers_from_json json =
@@ -157,7 +157,7 @@ let workers_from_json json =
     position = position;
     manipulators = [ (0,0); (1,0); (1,1); (1,-1) ];
     active_boosters = [];
-    direction = Right;
+    orientation = Right;
   }
 
 type game_state = {
@@ -292,7 +292,7 @@ let game_state_to_string state =
 	for y = state.world_height - 1 downto 0 do
 		for x = 0 to state.world_width - 1 do
       if bot_position = (x,y) then
-        s := !s ^ (direction_to_string worker.direction)
+        s := !s ^ (orientation_to_string worker.orientation)
       else if is_booster_at state.boosters (x,y) then
         s := !s ^ (booster_to_string (booster_at state.boosters (x,y)))
       else
@@ -410,7 +410,7 @@ let perform_action_turn_clockwise game_state worker_num =
   let worker = List.nth game_state.workers worker_num in
   let rotated_manipulators = List.map rotate_clockwise worker.manipulators in
   let worker = { worker with manipulators = rotated_manipulators } in
-  let worker = { worker with direction = direction_rotate_clockwise worker.direction } in
+  let worker = { worker with orientation = orientation_rotate_clockwise worker.orientation } in
   let workers = set_elem game_state.workers worker_num worker in
   { game_state with workers = workers }
 
@@ -418,7 +418,7 @@ let perform_action_turn_counterclockwise game_state worker_num =
   let worker = List.nth game_state.workers worker_num in
   let rotated_manipulators = List.map rotate_counterclockwise worker.manipulators in
   let worker = { worker with manipulators = rotated_manipulators } in
-  let worker = { worker with direction = direction_rotate_counterclockwise worker.direction } in
+  let worker = { worker with orientation = orientation_rotate_counterclockwise worker.orientation } in
   let workers = set_elem game_state.workers worker_num worker in
   { game_state with workers = workers }
 
