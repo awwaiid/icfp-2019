@@ -2,6 +2,7 @@ open Printf
 open Yojson.Basic.Util
 
 exception Error of string
+exception FatalError of string
 
 (* type game_map_t = location list *)
 (* type booster_location = booster_code * location *)
@@ -111,6 +112,7 @@ end)
   }
 
 type game_state = {
+  status: string;
   world: cell World.t;
   world_width: int;
   world_height: int;
@@ -214,6 +216,7 @@ let initialize_state command_stream =
   done;
 
   let game_state = {
+    status = "OK";
     world = !world;
     world_width = width;
     world_height = height;
@@ -271,6 +274,7 @@ let unwrapped_cells world =
 
 let state_to_json state =
   `Assoc [
+    "status", `String state.status;
     "state_string", `String (game_state_to_string state);
     "bot_position", location_to_json (List.hd state.workers).position;
     "map", game_state_map_to_json state;
@@ -395,7 +399,7 @@ let update_location_wrapped world location =
       World.add location Wrapped world
     else
       world
-  with Not_found -> world
+  with Not_found -> world (* Don't worry about the edge of the world *)
 
 let update_wrapped_state_worker game_state worker =
   let updated_world = List.fold_left
@@ -422,21 +426,32 @@ let pick_up_boosters game_state worker_num =
     inventory = game_state.inventory @ (List.map (fun (a, b, booster) -> booster) found_boosters);
   }
 
+let validate_location game_state worker_num =
+  try
+    let worker = List.nth game_state.workers worker_num in
+    let (x,y) = worker.position in
+    let cell = World.find worker.position game_state.world in
+    if cell = Obstacle || cell = Wall || x > game_state.world_width || y > game_state.world_height || x < 0 || y < 0 then
+      raise (Error "Invalid state")
+    else
+      game_state
+  with _ -> raise (Error "Invalid state")
 
 let perform_action cmd_json game_state worker_num =
     let action = cmd_json |> member "action" |> to_string in
     let game_state = (match action with
-    | "W" -> perform_action_move_up game_state worker_num
-    | "S" -> perform_action_move_down game_state worker_num
-    | "A" -> perform_action_move_left game_state worker_num
-    | "D" -> perform_action_move_right game_state worker_num
-    | "Z" -> perform_action_do_nothing game_state worker_num
-    | "E" -> perform_action_turn_clockwise game_state worker_num
-    | "Q" -> perform_action_turn_counterclockwise game_state worker_num
-    | _ -> raise (Error ("Unknown or unimplemented action: " ^ action)))
-    in
+      | "W" -> perform_action_move_up game_state worker_num
+      | "S" -> perform_action_move_down game_state worker_num
+      | "A" -> perform_action_move_left game_state worker_num
+      | "D" -> perform_action_move_right game_state worker_num
+      | "Z" -> perform_action_do_nothing game_state worker_num
+      | "E" -> perform_action_turn_clockwise game_state worker_num
+      | "Q" -> perform_action_turn_counterclockwise game_state worker_num
+      | _ -> raise (FatalError ("Unknown or unimplemented action: " ^ action))
+    ) in
     let game_state = update_wrapped_state game_state in
     let game_state = pick_up_boosters game_state worker_num in
+    let game_state = validate_location game_state worker_num in
     let game_state = record_action game_state action in
     game_state
 
@@ -453,17 +468,22 @@ let main () =
 
   while true do
     flush stdout;
-    let cmd_json = Stream.next command_stream in
-    let cmd = cmd_json |> member "cmd" |> to_string in
-    (match cmd with
-    | "print_state" -> print_game_state !game_state
-    | "get_state" -> print_game_state_json !game_state
-    | "action" ->
-        game_state := perform_action cmd_json !game_state 0;
-        print_game_state_json !game_state
-    (* | "get_path" -> get_path_cmd cmd_json game_state *)
-    | "exit" -> exit 0
-    | _ -> raise (Error ("Unknown command: " ^ cmd)));
+    try
+      let cmd_json = Stream.next command_stream in
+      let cmd = cmd_json |> member "cmd" |> to_string in
+      (match cmd with
+      | "print_state" -> print_game_state !game_state
+      | "get_state" -> ()
+      | "action" ->
+          game_state := perform_action cmd_json !game_state 0
+      (* | "get_path" -> get_path_cmd cmd_json game_state *)
+      | "exit" -> exit 0
+      | _ -> raise (Error ("Unknown command: " ^ cmd))
+      );
+      print_game_state_json !game_state
+    with Error(m) ->
+      game_state := { !game_state with status = ("error: " ^ m) };
+      print_game_state_json !game_state
   done
 
 let () = main ()
