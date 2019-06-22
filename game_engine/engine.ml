@@ -245,6 +245,9 @@ let game_state_map_to_json state =
 let print_game_state state =
   printf "%s" (game_state_to_string state)
 
+let unwrapped_cells world =
+  let unwrapped = World.filter (fun k v -> v == Unwrapped) world in
+  List.map fst (World.bindings unwrapped)
 
 let state_to_json state =
   `Assoc [
@@ -257,6 +260,7 @@ let state_to_json state =
     "boosters", `List ( List.map booster_loc_to_json state.boosters );
     "action_string", `String state.action_string;
     "workers", `List ( List.map worker_to_json state.workers );
+    "unwrapped_cells", `List ( List.map location_to_json (unwrapped_cells state.world) );
   ]
 
 let print_game_state_json state =
@@ -333,6 +337,7 @@ let main () =
 
   let command_stream = Yojson.Basic.stream_from_channel stdin in
   let game_state = ref (initialize_state command_stream) in
+  game_state := update_wrapped_state !game_state; (* Time step zero update? *)
   printf "{\"status\": \"loaded\"}\n%!";
   eprintf "read game state\n%!";
 
