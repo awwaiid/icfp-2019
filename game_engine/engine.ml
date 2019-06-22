@@ -61,14 +61,6 @@ type game_state = {
   inventory: booster list
 }
 
-let print_map world width height =
-	for y = height downto 0 do
-		for x = 0 to width do
-			printf "%s" (cell_to_string (World.find (x,y) world))
-		done;
-		printf "\n"
-	done
-
 let ray_intersects (ptx, pty) ((ix, iy), (jx, jy)) =
 	(
     ((iy <= pty) && (pty < jy))
@@ -87,27 +79,23 @@ let booster_at boosters (x,y) =
   let (a, b, booster) = List.find (fun (a, b, booster) -> x == a && y == b) boosters in
   booster
 
-let main () =
+let prob_game_map prob_json =
+  prob_json
+  |> member "contour"
+  |> convert_each (fun n -> (index 0 n |> to_int), (index 1 n |> to_int))
 
-  let command_stream = Yojson.Basic.stream_from_channel stdin in
+let prob_boosters prob_json =
+  prob_json
+  |> member "boosters"
+  |> convert_each (
+    fun n ->
+      let x = index 0 n in
+      let y = index 1 n in
+      let t = index 2 n in
+      (to_int x, to_int y, booster_of_string (to_string t))
+  )
 
-  let prob_json = Stream.next command_stream in
-  let game_map = prob_json
-    |> member "contour"
-    |> convert_each (fun n -> (index 0 n |> to_int), (index 1 n |> to_int))
-  in
-
-  let boosters = prob_json
-    |> member "boosters"
-    |> convert_each (
-      fun n ->
-        let x = index 0 n in
-        let y = index 1 n in
-        let t = index 2 n in
-        (to_int x, to_int y, booster_of_string (to_string t))
-    )
-  in
-
+let prob_start_loc prob_json =
   let start_loc_x = prob_json
     |> member "initial_loc"
     |> index 0
@@ -118,49 +106,36 @@ let main () =
     |> index 1
     |> to_int
   in
-  let start_loc = (start_loc_x, start_loc_y) in
+  (start_loc_x, start_loc_y)
 
-  let obstacles = prob_json
-    |> member "obstacles"
-    |> convert_each (
-      fun obstacle ->
-        obstacle |> convert_each (
-          fun coord ->
-            let x = index 0 coord in
-            let y = index 1 coord in
-            (to_int x, to_int y)
-        )
-    )
-  in
+let prob_obstacles prob_json =
+  prob_json
+  |> member "obstacles"
+  |> convert_each (
+    fun obstacle ->
+      obstacle |> convert_each (
+        fun coord ->
+          let x = index 0 coord in
+          let y = index 1 coord in
+          (to_int x, to_int y)
+      )
+  )
 
-  (* Dum.to_stdout game_map; *)
-  (* Dum.to_stdout boosters; *)
-  (* Dum.to_stdout start_loc; *)
-  (* Dum.to_stdout obstacles; *)
+let initialize_state command_stream =
+  let prob_json = Stream.next command_stream in
+
+  let game_map = prob_game_map prob_json in
+  let boosters = prob_boosters prob_json in
+  let start_loc = prob_start_loc prob_json in
+  let obstacles = prob_obstacles prob_json in
 
   let x_coords = List.map (fun (x,y) -> x) game_map in
   let width = List.fold_left max (List.hd x_coords) (List.tl x_coords) in
-  (* Dum.to_stdout width; *)
 
   let y_coords = List.map (fun (x,y) -> y) game_map in
   let height = List.fold_left max (List.hd y_coords) (List.tl y_coords) in
-  (* Dum.to_stdout height; *)
 
   let world = ref (World.empty) in
-  (* Dum.to_stdout world; *)
-
-  let game_state = ref {
-    world = World.empty;
-    world_width = width;
-    world_height = height;
-    bot_position = start_loc;
-    inventory = []
-  } in
-
-(* printf "\n\nGame state:"; *)
-(* Dum.to_stdout game_state; *)
-
-(*   printf "\n\n"; *)
 
   for y = height downto 0 do
     for x = 0 to width do
@@ -175,14 +150,60 @@ let main () =
     done
   done;
 
-  print_map !world width height
+  let game_state = {
+    world = !world;
+    world_width = width;
+    world_height = height;
+    bot_position = start_loc;
+    inventory = []
+  } in
+
+  game_state
+
+let print_map world width height =
+	for y = height downto 0 do
+		for x = 0 to width do
+			printf "%s" (cell_to_string (World.find (x,y) world))
+		done;
+		printf "\n"
+	done
+
+let print_game_state state =
+	for y = state.world_height downto 0 do
+		for x = 0 to state.world_width do
+      if state.bot_position = (x,y) then
+        printf "웃"
+      else
+        printf "%s" (cell_to_string (World.find (x,y) state.world))
+		done;
+		printf "\n"
+	done
+
+(* let game_state_to_json state = *)
+(* 	for y = state.world_height downto 0 do *)
+(* 		for x = 0 to state.world_width do *)
+(*       if state.bot_position = (x,y) then *)
+(*         printf "웃" *)
+(*       else *)
+(*         printf "%s" (cell_to_string (World.find (x,y) state.world)) *)
+(* 		done; *)
+(* 		printf "\n" *)
+(* 	done *)
 
 
-  (* printf game_map *)
-  (* printf "%s" game_map *)
+let main () =
 
-  (* while List.length !state.State.bots > 0 do *)
-  (*   state := State.execute_step !state trace_stream *)
-  (* done *)
+  let command_stream = Yojson.Basic.stream_from_channel stdin in
+  let game_state = ref (initialize_state command_stream) in
+
+  while true do
+    flush stdout;
+    let cmd_json = Stream.next command_stream in
+    let cmd = cmd_json |> member "cmd" |> to_string in
+    match cmd with
+    | "print_state" -> print_game_state !game_state
+    | "exit" -> exit 0
+    | _ -> raise (Error ("Unknown command: " ^ cmd))
+  done
 
 let () = main ()
