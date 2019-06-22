@@ -16,6 +16,7 @@ type location = int * int
 (* } *)
 
 type booster = B | F | L | X | R
+type booster_loc = int * int * booster
 
 let booster_to_string = function
   | B -> "B"
@@ -25,6 +26,9 @@ let booster_to_string = function
   | R -> "R"
 
 let booster_to_json booster = `String (booster_to_string booster)
+let booster_loc_to_json booster_loc =
+  let (x, y, booster) = booster_loc in
+  `List [ `Int x; `Int y; `String (booster_to_string booster) ]
 
 let booster_of_string = function
   | "B" -> B
@@ -60,7 +64,9 @@ type game_state = {
   world_width: int;
   world_height: int;
   bot_position: location;
-  inventory: booster list
+  inventory: booster list;
+  boosters: booster_loc list;
+  action_string: string;
 }
 
 let inventory_to_json inventory =
@@ -148,8 +154,8 @@ let initialize_state command_stream =
         world := World.add (x,y) Obstacle !world;
       end else if not (inside_polygon game_map (x, y)) then
 				world := World.add (x,y) Wall !world
-			else if is_booster_at boosters (x,y) then
-				world := World.add (x,y) (Booster(booster_at boosters (x,y))) !world
+			(* else if is_booster_at boosters (x,y) then *)
+			(* 	world := World.add (x,y) (Booster(booster_at boosters (x,y))) !world *)
       else
 				world := World.add (x,y) Unwrapped !world
     done
@@ -160,7 +166,9 @@ let initialize_state command_stream =
     world_width = width;
     world_height = height;
     bot_position = start_loc;
-    inventory = []
+    boosters = boosters;
+    inventory = [];
+    action_string = "";
   } in
 
   game_state
@@ -179,6 +187,8 @@ let game_state_to_string state =
 		for x = 0 to state.world_width - 1 do
       if state.bot_position = (x,y) then
         s := !s ^ (sprintf "!")
+      else if is_booster_at state.boosters (x,y) then
+        s := !s ^ (booster_to_string (booster_at state.boosters (x,y)))
       else
         s := !s ^ (sprintf "%s" (cell_to_string (World.find (x,y) state.world)))
 		done;
@@ -210,6 +220,8 @@ let state_to_json state =
     "map_width", `Int state.world_width;
     "map_height", `Int state.world_height;
     "inventory", inventory_to_json state.inventory;
+    "boosters", `List ( List.map booster_loc_to_json state.boosters );
+    "action_string", `String state.action_string;
   ]
 
 let print_game_state_json state =
@@ -235,6 +247,8 @@ let perform_action_move_right game_state =
 
 let perform_action cmd_json game_state =
     let action = cmd_json |> member "action" |> to_string in
+    let action_string = (!game_state).action_string in
+    game_state := { !game_state with action_string = action_string ^ action };
     match action with
     | "W" -> game_state := perform_action_move_up !game_state
     | "S" -> game_state := perform_action_move_down !game_state
