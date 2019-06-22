@@ -16,6 +16,7 @@ exception Error of string
 
 type location = int * int
 let location_to_json (x,y) = `List [ `Int x; `Int y ]
+let location_to_string (x,y) = sprintf "(%d,%d)" x y
 
 type booster = B | F | L | X | R | C
 type booster_loc = int * int * booster
@@ -47,14 +48,12 @@ type cell =
   | Obstacle
   | Unwrapped
   | Wrapped
-  | Teleport
 
 let cell_to_string = function
 	| Obstacle -> "O"
 	| Wall -> "W"
   | Unwrapped -> "-"
   | Wrapped -> "+"
-  | Teleport -> "T"
 
 module World = Map.Make(struct
   type t = location
@@ -340,26 +339,87 @@ let perform_action_turn_counterclockwise game_state worker_num =
   let worker = List.nth game_state.workers worker_num in
   let rotated_manipulators = List.map rotate_counterclockwise worker.manipulators in
   let worker = { worker with manipulators = rotated_manipulators } in
+  let worker = { worker with direction = direction_rotate_counterclockwise worker.direction } in
   let workers = set_elem game_state.workers worker_num worker in
   { game_state with workers = workers }
 
+let record_action game_state action =
+  let action_string = game_state.action_string in
+  { game_state with action_string = action_string ^ action }
+
 let perform_action cmd_json game_state =
     let action = cmd_json |> member "action" |> to_string in
-    let action_string = (!game_state).action_string in
-    game_state := { !game_state with action_string = action_string ^ action };
-    match action with
-    | "W" -> game_state := perform_action_move_up !game_state 0
-    | "S" -> game_state := perform_action_move_down !game_state 0
-    | "A" -> game_state := perform_action_move_left !game_state 0
-    | "D" -> game_state := perform_action_move_right !game_state 0
-    | "Z" -> game_state := perform_action_do_nothing !game_state 0
-    | "E" -> game_state := perform_action_turn_clockwise !game_state 0
-    | "Q" -> game_state := perform_action_turn_counterclockwise !game_state 0
-    | _ -> raise (Error ("Unknown or unimplemented action: " ^ action))
+    let game_state = (match action with
+    | "W" -> perform_action_move_up game_state 0
+    | "S" -> perform_action_move_down game_state 0
+    | "A" -> perform_action_move_left game_state 0
+    | "D" -> perform_action_move_right game_state 0
+    | "Z" -> perform_action_do_nothing game_state 0
+    | "E" -> perform_action_turn_clockwise game_state 0
+    | "Q" -> perform_action_turn_counterclockwise game_state 0
+    | _ -> raise (Error ("Unknown or unimplemented action: " ^ action)))
+    in
+    let game_state = record_action game_state action in
+    game_state
+
+let covered_cells' (x1, y1) (x2, y2) =
+  let x1 = (float_of_int x1) +. 0.5 in
+  let y1 = (float_of_int y1) +. 0.5 in
+  let x2 = (float_of_int x2) +. 0.5 in
+  let y2 = (float_of_int y2) +. 0.5 in
+  let dx = x2 -. x1 in
+  let dy = y2 -. y1 in
+  let step = if abs_float dx >= abs_float dy then abs_float dx else abs_float dy in
+  let dx = dx /. step in
+  let dy = dy /. step in
+  let x = ref x1 in
+  let y = ref y1 in
+  let covered = ref [] in
+  for i = 0 to (int_of_float step) do
+    covered := (!x, !y)::(!covered);
+    x := !x +. dx;
+    y := !y +. dy;
+  done;
+  !covered
+
+let covered_cells (x1, y1) (x2, y2) =
+  let x1 = (float_of_int x1) +. 0.5 in
+  let y1 = (float_of_int y1) +. 0.5 in
+  let x2 = (float_of_int x2) +. 0.5 in
+  let y2 = (float_of_int y2) +. 0.5 in
+  let dx = x2 -. x1 in
+  let dy = y2 -. y1 in
+  let step = if abs_float dx >= abs_float dy then abs_float dx else abs_float dy in
+  let dx = dx /. step in
+  let dy = dy /. step in
+  let x = ref x1 in
+  let y = ref y1 in
+  let covered = ref [] in
+  for i = 0 to (int_of_float step) do
+    covered := (int_of_float !x, int_of_float !y)::(!covered);
+    x := !x +. dx;
+    y := !y +. dy;
+  done;
+  !covered
+
+let is_transparent world (x, y) =
+  let cell = World.find (x, y) world in
+  match cell with
+	| Obstacle -> false
+	| Wall -> false
+  | Unwrapped -> true
+  | Wrapped -> true
+
+let is_visible world (x1, y1) (x2, y2) =
+  let cells = covered_cells (x1, y1) (x2, y2) in
+  List.exists (is_transparent world) cells
 
 let manipulator_positions worker =
   let (x,y) = worker.position in
   List.map (fun (i,j) -> (x+i, y+j)) worker.manipulators
+
+let visible_manipulator_positions world worker =
+  List.filter (is_visible world worker.position) (manipulator_positions worker)
 
 (* Only wrap unwrapped locations, ignore the rest *)
 let update_location_wrapped world location =
@@ -371,15 +431,14 @@ let update_location_wrapped world location =
   with Not_found -> world
 
 let update_wrapped_state_worker game_state worker =
-  let updated_world = List.fold_left update_location_wrapped game_state.world (manipulator_positions worker) in
+  let updated_world = List.fold_left
+    update_location_wrapped
+    game_state.world
+    (visible_manipulator_positions game_state.world worker) in
   { game_state with world = updated_world }
 
 let update_wrapped_state game_state =
   List.fold_left update_wrapped_state_worker game_state game_state.workers
-
-(* let get_path_cmd cmd_json game_state = *)
-(*   let start_pos = cmd_json |> member "path_from" |> (fun n -> (index 0 n), (index 1 n) in *)
-  (* ... *)
 
 let main () =
 
