@@ -41,11 +41,11 @@ type cell =
   | Teleport
 
 let cell_to_string = function
-	| Obstacle -> " "
-	| Wall -> "."
+	| Obstacle -> "O"
+	| Wall -> "W"
   | Booster b -> booster_to_string b
-  | Unwrapped -> "0"
-  | Wrapped -> "#"
+  | Unwrapped -> "-"
+  | Wrapped -> "+"
   | Teleport -> "T"
 
 module World = Map.Make(struct
@@ -181,6 +181,17 @@ let game_state_to_string state =
   done;
   !s
 
+let game_state_map_to_json state =
+  let s = ref [] in
+	for x = 0 to state.world_width do
+    let col = ref [] in
+    for y = 0 to state.world_height do
+      col := !col @ [`String (cell_to_string (World.find (x,y) state.world))]
+		done;
+    s := !s @ [ `List !col ]
+  done;
+  `List !s
+
 let print_game_state state =
   printf "%s" (game_state_to_string state)
 
@@ -190,7 +201,7 @@ let state_to_json state =
   `Assoc [
     "state_string", `String (game_state_to_string state);
     "bot_position", coord_to_json state.bot_position;
-
+    "map", game_state_map_to_json state;
   ]
 
 let print_game_state_json state =
