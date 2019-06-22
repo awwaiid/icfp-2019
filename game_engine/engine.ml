@@ -362,26 +362,6 @@ let perform_action cmd_json game_state =
     let game_state = record_action game_state action in
     game_state
 
-let covered_cells' (x1, y1) (x2, y2) =
-  let x1 = (float_of_int x1) +. 0.5 in
-  let y1 = (float_of_int y1) +. 0.5 in
-  let x2 = (float_of_int x2) +. 0.5 in
-  let y2 = (float_of_int y2) +. 0.5 in
-  let dx = x2 -. x1 in
-  let dy = y2 -. y1 in
-  let step = if abs_float dx >= abs_float dy then abs_float dx else abs_float dy in
-  let dx = dx /. step in
-  let dy = dy /. step in
-  let x = ref x1 in
-  let y = ref y1 in
-  let covered = ref [] in
-  for i = 0 to (int_of_float step) do
-    covered := (!x, !y)::(!covered);
-    x := !x +. dx;
-    y := !y +. dy;
-  done;
-  !covered
-
 let covered_cells (x1, y1) (x2, y2) =
   let x1 = (float_of_int x1) +. 0.5 in
   let y1 = (float_of_int y1) +. 0.5 in
