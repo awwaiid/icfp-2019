@@ -17,6 +17,8 @@ exception FatalError of string
 
 type location = int * int
 let location_to_json (x,y) = `List [ `Int x; `Int y ]
+let location_from_json json = (index 0 json |> to_int, index 1 json |> to_int)
+
 let location_to_string (x,y) = sprintf "(%d,%d)" x y
 
 type booster = B | F | L | X | R | C
@@ -44,6 +46,13 @@ let booster_of_string = function
   | "R" -> R
   | _ as s -> raise (Error ("Invalid Booster: " ^ s))
 
+let booster_from_json json = booster_of_string (json |> to_string)
+
+let booster_loc_from_json json =
+  let (x, y) = location_from_json json in
+  let booster = json |> index 2 |> booster_from_json in
+  (x, y, booster)
+
 type cell =
   | Wall
   | Obstacle
@@ -55,6 +64,16 @@ let cell_to_string = function
 	| Wall -> "W"
   | Unwrapped -> "-"
   | Wrapped -> "+"
+
+let cell_from_string = function
+	| "O" -> Obstacle
+	| "W" -> Wall
+  | "-" -> Unwrapped
+  | "+" -> Wrapped
+  | _ -> Wall
+
+let cell_from_json json =
+  json |> to_string |> cell_from_string
 
 module World = Map.Make(struct
   type t = location
@@ -71,8 +90,23 @@ end)
       "booster", booster_to_json active_booster.booster;
       "time_left", `Int active_booster.time_left;
     ]
+  let active_booster_from_json json =
+    let booster = json |> member "booster" |> booster_from_json in
+    let time_left = json |> member "time_left" |> to_int in
+    { booster = booster; time_left = time_left }
+
+  let active_boosters_from_json json =
+    json |> convert_each active_booster_from_json
 
   type direction = Up | Right | Down | Left
+
+  let direction_from_string = function
+    | "^" -> Up
+    | ">" -> Right
+    | "<" -> Left
+    | "v" -> Down
+    | _ -> Right
+
   let direction_to_string = function
     | Up -> "^"
     | Right -> ">"
@@ -104,6 +138,21 @@ end)
       "direction", `String (direction_to_string worker.direction);
     ]
 
+let boosters_from_json json =
+  json |> convert_each booster_loc_from_json
+
+
+let worker_from_json json =
+  {
+    position = json |> member "position" |> location_from_json;
+    active_boosters = json |> member "active_boosters" |> active_boosters_from_json;
+    manipulators = json |> member "manipulators" |> convert_each location_from_json;
+    direction = json |> member "direction" |> to_string |> direction_from_string;
+  }
+
+let workers_from_json json =
+  json |> convert_each worker_from_json
+
   let initial_worker position = {
     position = position;
     manipulators = [ (0,0); (1,0); (1,1); (1,-1) ];
@@ -126,6 +175,9 @@ type game_state = {
 let inventory_to_json inventory =
   `List ( List.map booster_to_json inventory )
 
+let inventory_from_json json =
+  json |> convert_each booster_from_json
+
 let ray_intersects (ptx, pty) ((ix, iy), (jx, jy)) =
 	(
     ((iy <= pty) && (pty < jy))
@@ -144,10 +196,11 @@ let booster_at boosters (x,y) =
   let (a, b, booster) = List.find (fun (a, b, booster) -> x == a && y == b) boosters in
   booster
 
+
 let prob_game_map prob_json =
   prob_json
   |> member "contour"
-  |> convert_each (fun n -> (index 0 n |> to_int), (index 1 n |> to_int))
+  |> convert_each location_from_json
 
 let prob_boosters prob_json =
   prob_json
@@ -178,12 +231,7 @@ let prob_obstacles prob_json =
   |> member "obstacles"
   |> convert_each (
     fun obstacle ->
-      obstacle |> convert_each (
-        fun coord ->
-          let x = index 0 coord in
-          let y = index 1 coord in
-          (to_int x, to_int y)
-      )
+      obstacle |> convert_each location_from_json
   )
 
 let initialize_state command_stream =
@@ -265,6 +313,16 @@ let game_state_map_to_json state =
   done;
   `List !s
 
+let world_from_json width height json =
+  let world = ref World.empty in
+	for x = 0 to width - 1 do
+    for y = 0 to height - 1 do
+      let cell = json |> index x |> index y |> cell_from_json in
+      world := World.add (x,y) cell !world
+    done
+  done;
+  !world
+
 let print_game_state state =
   printf "%s" (game_state_to_string state)
 
@@ -286,6 +344,23 @@ let state_to_json state =
     "workers", `List ( List.map worker_to_json state.workers );
     "unwrapped_cells", `List ( List.map location_to_json (unwrapped_cells state.world) );
   ]
+
+let load_game_state json =
+  (* eprintf "Loading game state!\n%!"; *)
+  let world_width = json |> member "map_width" |> to_int in
+  let world_height = json |> member "map_height" |> to_int in
+  {
+    status = json |> member "status" |> to_string;
+    world = json |> member "map" |> world_from_json world_width world_height;
+    world_width = world_width;
+    world_height = world_height;
+    bot_position = json |> member "bot_position" |> location_from_json;
+    boosters = json |> member "boosters" |> boosters_from_json;
+    inventory = json |> member "inventory" |> inventory_from_json;
+    action_string = json |> member "action_string" |> to_string;
+    workers = json |> member "workers" |> workers_from_json;
+  }
+
 
 let print_game_state_json state =
   Yojson.Basic.to_channel stdout (state_to_json state);
@@ -441,7 +516,7 @@ let check_for_win game_state =
   if List.length (unwrapped_cells game_state.world) = 0 then
     { game_state with status = "WIN" }
   else
-    game_state
+    { game_state with status = "OK" }
 
 let perform_action cmd_json game_state worker_num =
     let action = cmd_json |> member "action" |> to_string in
@@ -477,9 +552,11 @@ let main () =
     try
       let cmd_json = Stream.next command_stream in
       let cmd = cmd_json |> member "cmd" |> to_string in
+      eprintf "Processing cmd: %s\n%!" cmd;
       (match cmd with
       | "print_state" -> print_game_state !game_state
       | "get_state" -> ()
+      | "load_state" -> game_state := load_game_state (cmd_json |> member "state")
       | "action" ->
           game_state := perform_action cmd_json !game_state 0
       (* | "get_path" -> get_path_cmd cmd_json game_state *)

@@ -24,15 +24,31 @@ state = json.loads(result.decode())
 os.system('clear')
 print(state['state_string'])
 
+recent = []
+recent.append(state)
+
 while True:
     c = readchar.readchar()
-    engine.stdin.write(json.dumps({ "cmd": "action", "action": c.upper() }).encode())
-    engine.stdin.write(b'\n')
+
+    if c == "u":
+      state = recent.pop()
+      state = recent.pop()
+      # state['status'] = 'hmmm'
+      engine.stdin.write(json.dumps({ "cmd": "load_state", "state": state }).encode())
+      engine.stdin.write(b'\n')
+    else:
+        engine.stdin.write(json.dumps({ "cmd": "action", "action": c.upper() }).encode())
+        engine.stdin.write(b'\n')
+
     result = engine.stdout.readline()
+    # print(f"Result: {result}\n")
     state = json.loads(result.decode())
+    recent.append(state)
     os.system('clear')
     print(state['state_string'])
-    print('\n')
+    print('Status: ', state['status'])
+    print('Boosters: ', state['boosters'])
+    print('Inventory: ', state['inventory'])
     print(state['action_string'])
 
 engine.stdin.write(b'{ "cmd": "exit" }\n')
