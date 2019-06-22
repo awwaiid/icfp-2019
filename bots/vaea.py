@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import subprocess
 import json
+import random
 
 engine = subprocess.Popen(
     './game_engine/engine.native',
@@ -8,7 +9,7 @@ engine = subprocess.Popen(
     stdin=subprocess.PIPE,
     bufsize=0)
 
-task_json = subprocess.check_output(["./bin/parse-task", "./data/prob-001.desc"], universal_newlines=True)
+task_json = subprocess.check_output(["./bin/parse-task", "./data/prob-002.desc"], universal_newlines=True)
 
 engine.stdin.write(task_json.encode())
 engine.stdin.write(b'\n')
@@ -18,10 +19,6 @@ print(result.decode())
 engine.stdin.write(b'{ "cmd": "get_state" }\n')
 result = engine.stdout.readline()
 print(result.decode())
-
-# engine.stdin.write(b'{ "cmd": "action", "action": "W" }\n')
-# result = engine.stdout.readline()
-# print(result.decode())
 
 data = json.loads(result.decode())
 mapList = data["map"]
@@ -87,8 +84,9 @@ def two_turns(dir):
 
 def move(old, dir):
     print("Current Direction: " + str(dir))
+    #print("Random: " + str(random.randrange(2)))
     ahead = [old[0] + dir[0], old[1] + dir[1]]
-    if valid(ahead) and ahead[0] >= 0 and ahead[1] >= 0:
+    if valid(ahead) and ahead[0] >= 0 and ahead[1] >= 0 and random.randrange(2):
         old = ahead
         print("Moving to " + str(ahead))
         print("Move: " + dir[2])
@@ -129,7 +127,7 @@ def rotate(dir):
 
 
 rnd = 0
-while len(seen) < seen_count and len(moves) < 80:
+while len(seen) < seen_count and len(moves) < 10000:
     rnd += 1
     print("\nMove " + str(rnd) + ": " + str(len(seen)) + " out of " + str(seen_count) + " seen")
     print("Current: " + str(current))
@@ -137,7 +135,9 @@ while len(seen) < seen_count and len(moves) < 80:
         paint(current)
     check_manipulators(current, direction)
     current, direction = move(current, direction)
-
+    engine.stdin.write(b'{ "cmd": "action", "action": "' + str(moves[-1]) + '" }\n')
+    result = engine.stdout.readline()
+    print(result.decode())
 
 print("\n")
 print("".join([str(x) for x in moves]))
