@@ -13,7 +13,7 @@ task_json = subprocess.check_output(["../bin/parse-task","../data/prob-002.desc"
 engine.stdin.write(task_json.encode())
 engine.stdin.write(b'\n')
 result = engine.stdout.readline()
-print(result)
+print(result.decode())
 
 engine.stdin.write(b'{ "cmd": "get_state" }\n')
 result = engine.stdout.readline()

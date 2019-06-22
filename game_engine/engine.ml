@@ -196,9 +196,12 @@ let game_state_to_json state =
 		printf "\n"
 	done
 
+let coord_to_json (x,y) = `List [ `Int x; `Int y ]
+
 let state_to_json state =
   `Assoc [
-    "state_string", `String (game_state_to_string state);
+    (* "state_string", `String (game_state_to_string state); *)
+    "bot_position", coord_to_json state.bot_position;
   ]
 
 let print_game_state_json state =
