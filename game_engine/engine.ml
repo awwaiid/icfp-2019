@@ -42,10 +42,10 @@ type cell =
 
 let cell_to_string = function
 	| Obstacle -> " "
-	| Wall -> "·"
+	| Wall -> "."
   | Booster b -> booster_to_string b
-  | Unwrapped -> "□"
-  | Wrapped -> "■"
+  | Unwrapped -> "0"
+  | Wrapped -> "#"
   | Teleport -> "T"
 
 module World = Map.Make(struct
@@ -173,7 +173,7 @@ let game_state_to_string state =
 	for y = state.world_height downto 0 do
 		for x = 0 to state.world_width do
       if state.bot_position = (x,y) then
-        s := !s ^ (sprintf "웃")
+        s := !s ^ (sprintf "!")
       else
         s := !s ^ (sprintf "%s" (cell_to_string (World.find (x,y) state.world)))
 		done;
@@ -184,24 +184,13 @@ let game_state_to_string state =
 let print_game_state state =
   printf "%s" (game_state_to_string state)
 
-
-let game_state_to_json state =
-	for y = state.world_height downto 0 do
-		for x = 0 to state.world_width do
-      if state.bot_position = (x,y) then
-        printf "웃"
-      else
-        printf "%s" (cell_to_string (World.find (x,y) state.world))
-		done;
-		printf "\n"
-	done
-
 let coord_to_json (x,y) = `List [ `Int x; `Int y ]
 
 let state_to_json state =
   `Assoc [
-    (* "state_string", `String (game_state_to_string state); *)
+    "state_string", `String (game_state_to_string state);
     "bot_position", coord_to_json state.bot_position;
+
   ]
 
 let print_game_state_json state =
