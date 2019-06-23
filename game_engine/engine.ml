@@ -595,6 +595,7 @@ let print_path_cmd json game_state =
   let actions = path_to_actions path in
   let result_json = `Assoc [
     "path_commands", `List ( List.map (fun s -> `String s) actions );
+    "path", `List ( List.map (fun s -> location_to_json s) path);
   ] in
   Yojson.Basic.to_channel stdout result_json;
   printf "\n";
