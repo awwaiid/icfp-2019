@@ -52,11 +52,11 @@ if __name__ == "__main__":
     engine.stdin.write(task_json.encode())
     engine.stdin.write(b'\n')
     result = engine.stdout.readline()
-    print(result.decode())
+#    print(result.decode())
 
     engine.stdin.write(b'{ "cmd": "get_state" }\n')
     result = engine.stdout.readline()
-    print(result.decode())
+#    print(result.decode())
 
     data = json.loads(result.decode())
     map_list = data["map"]
@@ -70,7 +70,7 @@ if __name__ == "__main__":
 
     np_map = np.array(map_list)
     #np.set_printoptions(threshold=sys.maxsize, linewidth=1000)
-    print("Shape: " + str(np_map.shape))
+    #print("Shape: " + str(np_map.shape))
     #print(np_map)
     #print("\n\nunwrapped:")
     #print(unwrapped)
@@ -79,40 +79,28 @@ if __name__ == "__main__":
     stop_rnd_cnt = 10
     use_longest = True
     while len(unwrapped) != 0:
-        if status == 'error: Invalid state' :
-            use_longest = not use_longest
-#            move = random.choice(dirs)
-#            stop_rnd_cnt = 0
-#        elif old_uw_cnt == new_uw_cnt and stop_rnd_cnt < 10 :
-#            move = random.choice(dirs)
-#            stop_rnd_cnt += 1
-#        else :
-        next_loc = get_closest_loc(cur_loc, unwrapped, use_longest)
-        move = get_next_move(cur_loc, next_loc)
-        print("Trying " + move)
-
-        engine.stdin.write(('{ "cmd": "action", "action": "' + str(move) + '" }\n').encode())
+        next_loc = get_closest_loc(cur_loc, unwrapped)
+        #print('{ "cmd": "get_path", "target": [' + str(next_loc[0]) + ',' + str(next_loc[1]) + '] }\n')
+        engine.stdin.write(('{ "cmd": "get_path", "target": [' + str(next_loc[0]) + ',' + str(next_loc[1]) + '] }\n').encode())
         result = engine.stdout.readline()
-#        engine.stdin.write(b'{ "cmd": "get_path", "location": "(' + str(next_loc[0]) + ',' + str(next_loc[1]) + ')" }\n')
-#        result = engine.stdout.readline().decode()
-#        for char in result["path"]:
-#            engine.stdin.write(b'{ "cmd": "action", "action": "' + char + '" }\n')
+        data = json.loads(result.decode())
+    #    print(data)
+        for move in data["path_commands"]:
+            final_moves.append(move)
+            engine.stdin.write(('{ "cmd": "action", "action": "' + str(move) + '" }\n').encode())
+            result = engine.stdout.readline()
+            data = json.loads(result.decode())
+            if data["status"] == 'error: Invalid state' : print("####### ERROR: invalid state ######")
+            #print(data)
 
         # update values now
-        data = json.loads(result.decode())
-        status = data["status"]
-        if status != 'error: Invalid state' :
-            print(move)
-            cnt += 1
-            final_moves.append(move)
         unwrapped = data["unwrapped_cells"]
-        old_uw_cnt = new_uw_cnt
-        new_uw_cnt = len(unwrapped)
-        print("new unwrapped:")
-        print(unwrapped)
+#        print(unwrapped)
+        cur_loc = data["workers"][0]["position"]
+#        print("\n\n")
 
-    print("\n")
+#    print("\n")
     engine.stdin.write(b'{ "cmd": "exit" }\n')
 
-    print("moves: " + ''.join(final_moves))
+    print(''.join(final_moves))
 
