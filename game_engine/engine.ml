@@ -527,7 +527,7 @@ let astar_path world start goal =
   List.rev (Astar.search problem start)
 
 let relative_action (x1, y1) (x2, y2) =
-  eprintf "Relative action from (%d,%d) -> (%d,%d)\n%!" x1 y1 x2 y2;
+  (* eprintf "Relative action from (%d,%d) -> (%d,%d)\n%!" x1 y1 x2 y2; *)
   if      (x2, y2) = (x1 + 0, y1 + 1) then "W"
   else if (x2, y2) = (x1 + 1, y1 + 0) then "D"
   else if (x2, y2) = (x1 + 0, y1 - 1) then "S"
