@@ -4,21 +4,9 @@ open Yojson.Basic.Util
 exception Error of string
 exception FatalError of string
 
-(* type game_map_t = location list *)
-(* type booster_location = booster_code * location *)
-(* type obstacles = game_map_t list *)
-(* type boosters = game_map_t list *)
-(* type task = { *)
-(*   map: game_map_t, *)
-(*   start: location, *)
-(*   obstacles: obstacles, *)
-(*   boosters: boosters *)
-(* } *)
-
 type location = int * int
 let location_to_json (x,y) = `List [ `Int x; `Int y ]
 let location_from_json json = (index 0 json |> to_int, index 1 json |> to_int)
-
 let location_to_string (x,y) = sprintf "(%d,%d)" x y
 
 type booster = B | F | L | X | R | C
@@ -32,11 +20,6 @@ let booster_to_string = function
   | X -> "X"
   | R -> "R"
 
-let booster_to_json booster = `String (booster_to_string booster)
-let booster_loc_to_json booster_loc =
-  let (x, y, booster) = booster_loc in
-  `List [ `Int x; `Int y; `String (booster_to_string booster) ]
-
 let booster_of_string = function
   | "B" -> B
   | "C" -> C
@@ -46,7 +29,12 @@ let booster_of_string = function
   | "R" -> R
   | _ as s -> raise (Error ("Invalid Booster: " ^ s))
 
+let booster_to_json booster = `String (booster_to_string booster)
 let booster_from_json json = booster_of_string (json |> to_string)
+
+let booster_loc_to_json booster_loc =
+  let (x, y, booster) = booster_loc in
+  `List [ `Int x; `Int y; `String (booster_to_string booster) ]
 
 let booster_loc_from_json json =
   let (x, y) = location_from_json json in
@@ -422,6 +410,12 @@ let perform_action_turn_counterclockwise game_state worker_num =
   let workers = set_elem game_state.workers worker_num worker in
   { game_state with workers = workers }
 
+let perform_action_attach_manipulator game_state worker_num x y =
+  let worker = List.nth game_state.workers worker_num in
+  let worker = { worker with manipulators = (x,y) :: worker.manipulators } in
+  let workers = set_elem game_state.workers worker_num worker in
+  { game_state with workers = workers }
+
 let record_action game_state action =
   let action_string = game_state.action_string in
   { game_state with action_string = action_string ^ action }
@@ -518,8 +512,17 @@ let check_for_win game_state =
   else
     { game_state with status = "OK" }
 
+let extract_manipulator_action action =
+  if Str.string_match (Str.regexp "B(\\([-0-9]+\\),\\([-0-9]+\\))") action 0 then
+    let x = int_of_string (Str.matched_group 1 action) in
+    let y = int_of_string (Str.matched_group 2 action) in
+    ("B", x, y)
+  else
+    (action, 0, 0)
+
 let perform_action cmd_json game_state worker_num =
     let action = cmd_json |> member "action" |> to_string in
+    let action, x, y = extract_manipulator_action action in
     let game_state = (match action with
       | "W" -> perform_action_move_up game_state worker_num
       | "S" -> perform_action_move_down game_state worker_num
@@ -528,6 +531,7 @@ let perform_action cmd_json game_state worker_num =
       | "Z" -> perform_action_do_nothing game_state worker_num
       | "E" -> perform_action_turn_clockwise game_state worker_num
       | "Q" -> perform_action_turn_counterclockwise game_state worker_num
+      | "B" -> perform_action_attach_manipulator game_state worker_num x y
       | _ -> raise (FatalError ("Unknown or unimplemented action: " ^ action))
     ) in
     let game_state = update_wrapped_state game_state in

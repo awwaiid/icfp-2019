@@ -1,4 +1,4 @@
 #!/bin/sh
 
-ocamlbuild -r -use-ocamlfind -pkgs yojson,dum engine.native
+ocamlbuild -r -use-ocamlfind -pkgs yojson,dum,str engine.native
 

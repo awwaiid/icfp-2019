@@ -36,6 +36,8 @@ while True:
       # state['status'] = 'hmmm'
       engine.stdin.write(json.dumps({ "cmd": "load_state", "state": state }).encode())
       engine.stdin.write(b'\n')
+    elif c == "i":
+        engine.stdin.write(json.dumps({ "cmd": "action", "action": "B(2,0)" }).encode())
     else:
         engine.stdin.write(json.dumps({ "cmd": "action", "action": c.upper() }).encode())
         engine.stdin.write(b'\n')
