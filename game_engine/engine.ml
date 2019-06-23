@@ -358,6 +358,9 @@ let print_game_state_json state =
 let set_elem lst index new_value =
   List.mapi (fun index' el -> if index = index' then new_value else el) lst
 
+let has_fast_wheels worker =
+  List.exists (fun active_booster -> active_booster.booster = F) worker.active_boosters
+
 let perform_action_move_up game_state worker_num =
   let worker = List.nth game_state.workers worker_num in
   let (x,y) = worker.position in
@@ -413,6 +416,17 @@ let perform_action_turn_counterclockwise game_state worker_num =
 let perform_action_attach_manipulator game_state worker_num x y =
   let worker = List.nth game_state.workers worker_num in
   let worker = { worker with manipulators = (x,y) :: worker.manipulators } in
+  let workers = set_elem game_state.workers worker_num worker in
+  { game_state with workers = workers }
+
+
+let perform_action_fast_wheels game_state worker_num =
+  let worker = List.nth game_state.workers worker_num in
+  (* Remove any existing F booster *)
+  (* TODO: Complain if we don't have an F in inventory *)
+  let active_boosters = List.filter (fun active_booster -> active_booster.booster != F) worker.active_boosters in
+  let active_boosters = { booster = F; time_left = 50 } :: active_boosters in
+  let worker = { worker with active_boosters = active_boosters } in
   let workers = set_elem game_state.workers worker_num worker in
   { game_state with workers = workers }
 
@@ -495,6 +509,39 @@ let pick_up_boosters game_state worker_num =
     inventory = game_state.inventory @ (List.map (fun (a, b, booster) -> booster) found_boosters);
   }
 
+  (***************************)
+
+let get_next_states world (i, j) =
+  [(i-1, j); (i+1, j); (i, j-1); (i, j+1)]
+  |> List.filter (is_transparent world)
+
+(** Solve a given maze. *)
+let astar_path world start goal =
+  let open Astar in
+  let cost (i, j) (k, l) = abs (i-k) + abs (j-l) in (* Manhattan distance *)
+  let problem = {
+    Astar.cost = cost;
+    Astar.goal = goal;
+    Astar.get_next_states = get_next_states world;
+  } in
+  List.rev (Astar.search problem start)
+
+let relative_action (x1, y1) (x2, y2) =
+  eprintf "Relative action from (%d,%d) -> (%d,%d)\n%!" x1 y1 x2 y2;
+  if      (x2, y2) = (x1 + 0, y1 + 1) then "W"
+  else if (x2, y2) = (x1 + 1, y1 + 0) then "D"
+  else if (x2, y2) = (x1 + 0, y1 - 1) then "S"
+  else if (x2, y2) = (x1 - 1, y1 + 0) then "A"
+  else "Z"
+
+let rec path_to_actions' start path =
+  match path with
+  | dest::[] -> [relative_action start dest]
+  | dest::rest -> (relative_action start dest)::(path_to_actions' dest rest)
+  | _ -> []
+
+let path_to_actions path = path_to_actions' (List.hd path) (List.tl path)
+
 let validate_location game_state worker_num =
   try
     let worker = List.nth game_state.workers worker_num in
@@ -532,6 +579,7 @@ let perform_action cmd_json game_state worker_num =
       | "E" -> perform_action_turn_clockwise game_state worker_num
       | "Q" -> perform_action_turn_counterclockwise game_state worker_num
       | "B" -> perform_action_attach_manipulator game_state worker_num x y
+      | "F" -> perform_action_fast_wheels game_state worker_num
       | _ -> raise (FatalError ("Unknown or unimplemented action: " ^ action))
     ) in
     let game_state = update_wrapped_state game_state in
@@ -540,6 +588,17 @@ let perform_action cmd_json game_state worker_num =
     let game_state = record_action game_state action in
     let game_state = check_for_win game_state in
     game_state
+
+let print_path_cmd json game_state =
+  let target = json |> member "target" |> location_from_json in
+  let path = astar_path game_state.world game_state.bot_position target in
+  let actions = path_to_actions path in
+  let result_json = `Assoc [
+    "path_commands", `List ( List.map (fun s -> `String s) actions );
+  ] in
+  Yojson.Basic.to_channel stdout result_json;
+  printf "\n";
+  flush stdout
 
 let main () =
 
@@ -551,6 +610,12 @@ let main () =
   printf "{\"status\": \"loaded\"}\n%!";
   eprintf "read game state\n%!";
 
+  (* let path = astar_path !game_state.world (0,0) (5,1) in *)
+  (* Dum.to_stderr path; *)
+  (* List.iter ( fun l -> eprintf "path: %s\n%!" (location_to_string l)) path; *)
+  (* let actions = path_to_actions path in *)
+  (* List.iter ( fun l -> eprintf "action: %s\n%!" l) actions; *)
+
   while true do
     flush stdout;
     try
@@ -558,16 +623,18 @@ let main () =
       let cmd = cmd_json |> member "cmd" |> to_string in
       (* eprintf "Processing cmd: %s\n%!" cmd; *)
       (match cmd with
-      | "print_state" -> print_game_state !game_state
-      | "get_state" -> ()
-      | "load_state" -> game_state := load_game_state (cmd_json |> member "state")
+      | "get_state" ->
+        print_game_state_json !game_state
+      | "load_state" ->
+          game_state := load_game_state (cmd_json |> member "state");
+          print_game_state_json !game_state
       | "action" ->
-          game_state := perform_action cmd_json !game_state 0
-      (* | "get_path" -> get_path_cmd cmd_json game_state *)
+          game_state := perform_action cmd_json !game_state 0;
+          print_game_state_json !game_state
+      | "get_path" -> print_path_cmd cmd_json !game_state
       | "exit" -> exit 0
       | _ -> raise (Error ("Unknown command: " ^ cmd))
       );
-      print_game_state_json !game_state
     with Error(m) ->
       game_state := { !game_state with status = ("error: " ^ m) };
       print_game_state_json !game_state
