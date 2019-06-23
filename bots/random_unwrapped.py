@@ -6,6 +6,7 @@ import json
 import numpy as np
 import subprocess
 import random
+random.seed(42)
 
 engine = subprocess.Popen(
     './game_engine/engine.native',
@@ -31,6 +32,7 @@ map_list = data["map"]
 unwrapped = data["unwrapped_cells"]
 direction = [1, 0, 'D']
 cur_loc = data["bot_position"]
+final_moves = []
 
 
 np_map = np.array(map_list)
@@ -40,18 +42,29 @@ print(np_map)
 print("\n\nunwrapped:")
 print(unwrapped)
 
-while len(unwrapped) != 0:
+cnt = 0
+while len(unwrapped) != 0 :
     next_loc = random.choice(unwrapped)
-    engine.stdin.write(b'{ "cmd": "get_path", "location": "(' + str(next_loc[0]) + ',' + str(next_loc[1]) + ')" }\n')
-    result = engine.stdout.readline().decode()
-    for char in result["path"]:
-        engine.stdin.write(b'{ "cmd": "action", "action": "' + char + '" }\n')
+    #print('{ "cmd": "get_path", "target": [' + str(next_loc[0]) + ',' + str(next_loc[1]) + '] }\n')
+    engine.stdin.write(('{ "cmd": "get_path", "target": [' + str(next_loc[0]) + ',' + str(next_loc[1]) + '] }\n').encode())
+    result = engine.stdout.readline()
+    data = json.loads(result.decode())
+#    print(data)
+    for move in data["path_commands"]:
+        final_moves.append(move)
+        engine.stdin.write(('{ "cmd": "action", "action": "' + str(move) + '" }\n').encode())
+        result = engine.stdout.readline()
+        data = json.loads(result.decode())
+        if data["status"] == 'error: Invalid state' : print("####### ERROR: invalid state ######")
+        #print(data)
 
     # update values now
-    engine.stdin.write(b'{ "cmd": "get_state" }\n')
-    data = json.loads(result.decode())
-    unwrapped = data["uwrapped_cells"]
+    unwrapped = data["unwrapped_cells"]
+    print(unwrapped + "\n\n")
+    cnt += 1
 
 print("\n")
 engine.stdin.write(b'{ "cmd": "exit" }\n')
+
+print("Moves: " + ''.join(final_moves))
 
