@@ -1,9 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import sys
 sys.path.append('lib/')
 import json
-import numpy as np
 import subprocess
 import random
 
