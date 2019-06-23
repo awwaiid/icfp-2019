@@ -31,6 +31,10 @@ def engine_command(engine, command_data):
     data = json.loads(result)
     return data
 
+def engine_command_add_manipulator(engine, coords):
+    final_moves.append('B(' + ','.join(map(str, coords)) + ')')
+    return engine_command(engine, { "cmd": "action", "action": f"B({','.join(map(str, coords))})"})
+
 def get_path_commands(engine, target):
     data = engine_command(engine, { 'cmd': 'get_path', 'target': target })
     return data["path_commands"]
@@ -90,8 +94,7 @@ if __name__ == "__main__":
             if 'B' in data["inventory"] and len(next_manip_pos) > 0:
                 # attach manipulator, ignore result
                 coords = next_manip_pos.pop(0)
-                final_moves.append('B(' + ','.join(map(str, coords)) + ')')
-                engine_command(engine, { "cmd": "action", "action": f"B({','.join(map(str, coords))})"})
+                engine_command_add_manipulator(engine, coords)
 
         # update values now
         unwrapped = data["unwrapped_cells"]
