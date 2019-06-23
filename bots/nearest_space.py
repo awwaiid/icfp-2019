@@ -59,7 +59,7 @@ if __name__ == "__main__":
 #    print(result.decode())
 
     data = json.loads(result.decode())
-    map_list = data["map"]
+#    map_list = data["map"]
     unwrapped = data["unwrapped_cells"]
     old_uw_cnt = len(unwrapped)
     new_uw_cnt = 0
@@ -68,7 +68,7 @@ if __name__ == "__main__":
     status = data["status"]
     final_moves = []
 
-    np_map = np.array(map_list)
+    #np_map = np.array(map_list)
     #np.set_printoptions(threshold=sys.maxsize, linewidth=1000)
     #print("Shape: " + str(np_map.shape))
     #print(np_map)
@@ -93,9 +93,10 @@ if __name__ == "__main__":
             if data["status"] == 'error: Invalid state' : print("####### ERROR: invalid state ######")
             #print(data)
 
+        #print(data)
         # update values now
         unwrapped = data["unwrapped_cells"]
-#        print(unwrapped)
+        print(len(unwrapped), file=sys.stderr)
         cur_loc = data["workers"][0]["position"]
 #        print("\n\n")
 
