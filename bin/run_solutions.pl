@@ -12,7 +12,7 @@ closedir $dir;
 
 my @problems = grep { $_ =~ /prob-\d\d\d\.desc/ } @files;
 
-for my $problem (@problems) {
+for my $problem (sort @problems) {
   my $size = -s "data/$problem";
   warn $size;
 #  next if $size <= 10000;
