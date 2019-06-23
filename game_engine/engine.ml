@@ -464,6 +464,16 @@ let is_transparent world (x, y) =
     | Wrapped -> true
   with Not_found -> true
 
+let is_traversable world (x, y) =
+  try
+    let cell = World.find (x, y) world in
+    match cell with
+    | Obstacle -> false
+    | Wall -> false
+    | Unwrapped -> true
+    | Wrapped -> true
+  with Not_found -> false
+
 let is_visible world (x1, y1) (x2, y2) =
   let cells = covered_cells (x1, y1) (x2, y2) in
   List.exists (is_transparent world) cells
@@ -513,7 +523,7 @@ let pick_up_boosters game_state worker_num =
 
 let get_next_states world (i, j) =
   [(i-1, j); (i+1, j); (i, j-1); (i, j+1)]
-  |> List.filter (is_transparent world)
+  |> List.filter (is_traversable world)
 
 (** Solve a given maze. *)
 let astar_path world start goal =
