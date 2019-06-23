@@ -517,9 +517,9 @@ let get_next_states world (i, j) =
 
 (** Solve a given maze. *)
 let astar_path world start goal =
-  let (start_x, start_y) = start in
-  let (goal_x, goal_y) = goal in
-  eprintf "Mapping path from (%d,%d) -> (%d,%d)\n%!" start_x start_y goal_x goal_y;
+  (* let (start_x, start_y) = start in *)
+  (* let (goal_x, goal_y) = goal in *)
+  (* eprintf "Mapping path from (%d,%d) -> (%d,%d)\n%!" start_x start_y goal_x goal_y; *)
   let open Astar in
   let cost (i, j) (k, l) = abs (i-k) + abs (j-l) in (* Manhattan distance *)
   let problem = {
@@ -594,7 +594,8 @@ let perform_action cmd_json game_state worker_num =
 
 let print_path_cmd json game_state =
   let target = json |> member "target" |> location_from_json in
-  let path = astar_path game_state.world game_state.bot_position target in
+  let bot_position = (List.hd game_state.workers).position in
+  let path = astar_path game_state.world bot_position target in
   let actions = path_to_actions path in
   let result_json = `Assoc [
     "path_commands", `List ( List.map (fun s -> `String s) actions );
@@ -614,11 +615,11 @@ let main () =
   printf "{\"status\": \"loaded\"}\n%!";
   eprintf "read game state\n%!";
 
-  let path = astar_path !game_state.world (7,3) (5,1) in
-  Dum.to_stderr path;
-  List.iter ( fun l -> eprintf "path: %s\n%!" (location_to_string l)) path;
-  let actions = path_to_actions path in
-  List.iter ( fun l -> eprintf "action: %s\n%!" l) actions;
+  (* let path = astar_path !game_state.world (7,3) (5,1) in *)
+  (* Dum.to_stderr path; *)
+  (* List.iter ( fun l -> eprintf "path: %s\n%!" (location_to_string l)) path; *)
+  (* let actions = path_to_actions path in *)
+  (* List.iter ( fun l -> eprintf "action: %s\n%!" l) actions; *)
 
   while true do
     flush stdout;
