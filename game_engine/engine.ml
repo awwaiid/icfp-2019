@@ -414,10 +414,15 @@ let perform_action_turn_counterclockwise game_state worker_num =
   { game_state with workers = workers }
 
 let perform_action_attach_manipulator game_state worker_num x y =
-  let worker = List.nth game_state.workers worker_num in
-  let worker = { worker with manipulators = (x,y) :: worker.manipulators } in
-  let workers = set_elem game_state.workers worker_num worker in
-  { game_state with workers = workers }
+  if not (List.exists (fun b -> b == B) game_state.inventory) then
+    raise (Error "Invalid state")
+  else
+    let (booster_manipulators, booster_others) = List.partition (fun booster -> booster = B) game_state.inventory in
+    let remaining_boosters = (List.tl booster_manipulators) @ booster_others in
+    let worker = List.nth game_state.workers worker_num in
+    let worker = { worker with manipulators = (x,y) :: worker.manipulators } in
+    let workers = set_elem game_state.workers worker_num worker in
+    { game_state with workers = workers; inventory = remaining_boosters }
 
 
 let perform_action_fast_wheels game_state worker_num =
@@ -435,24 +440,98 @@ let record_action game_state action =
   { game_state with action_string = action_string ^ action }
 
 let covered_cells (x1, y1) (x2, y2) =
-  let x1 = (float_of_int x1) +. 0.5 in
-  let y1 = (float_of_int y1) +. 0.5 in
-  let x2 = (float_of_int x2) +. 0.5 in
-  let y2 = (float_of_int y2) +. 0.5 in
-  let dx = x2 -. x1 in
-  let dy = y2 -. y1 in
-  let step = if abs_float dx >= abs_float dy then abs_float dx else abs_float dy in
-  let dx = dx /. step in
-  let dy = dy /. step in
-  let x = ref x1 in
+  let points = ref [] in
+  let ystep = ref 0 in
+  let xstep = ref 0 in (*  // the step on y and x axis *)
+  let error = ref 0 in           (* // the error accumulated during the increment *)
+  let errorprev = ref 0 in       (* // *vision the previous value of the error variable *)
   let y = ref y1 in
-  let covered = ref [] in
-  for i = 0 to (int_of_float step) do
-    covered := (int_of_float !x, int_of_float !y)::(!covered);
-    x := !x +. dx;
-    y := !y +. dy;
-  done;
-  !covered
+  let x = ref x1 in  (* // the line points *)
+  let ddy = ref 0 in
+  let ddx = ref 0 in        (* // compulsory variables: the double values of dy and dx *)
+  let dx = ref (x2 - x1) in
+  let dy = ref (y2 - y1) in
+  points := (x1, y1) :: !points;  (* // first point *)
+  (* // NB the last point can't be here, because of its previous point (which has to be verified) *)
+  if !dy < 0 then begin
+    ystep := -1;
+    dy := -(!dy);
+  end else ystep := 1;
+  if (!dx < 0) then begin
+    xstep := -1;
+    dx := -(!dx);
+  end else
+    xstep := 1;
+  ddy := 2 * !dy;  (* // work with double values for full precision *)
+  ddx := 2 * !dx;
+  if !ddx >= !ddy then begin (* // first octant (0 <= slope <= 1) *)
+    (* // compulsory initialization (even for errorprev, needed when dx==dy) *)
+    error := !dx;  (* // start in the middle of the square *)
+    errorprev := !error;  (* // start in the middle of the square *)
+    for i = 0 to !dx - 1 do  (* // do not use the first point (already done) *)
+      x := !x + !xstep;
+      error := !error + !ddy;
+      if !error > !ddx then begin  (* // increment y if AFTER the middle ( > ) *)
+        y := !y + !ystep;
+        error := !error - !ddx;
+        (* // three cases (octant == right->right-top for directions below): *)
+        if !error + !errorprev < !ddx then  (* // bottom square also *)
+          points := (!x, !y - !ystep) :: !points
+        else if !error + !errorprev > !ddx then (* // left square also *)
+          points := (!x - !xstep, !y) :: !points
+        else ()
+        (* begin  (1* // corner: bottom and left squares also *1) *)
+        (*   points := (!x, !y - !ystep) :: !points; *)
+        (*   points := (!x - !xstep, !y) :: !points *)
+        (* end *)
+      end;
+      points := (!x, !y) :: !points;
+      errorprev := !error;
+    done
+  end else begin  (* // the same as above *)
+    error := !dy;
+    errorprev := !error;
+    for i = 0 to !dy - 1 do
+      y := !y + !ystep;
+      error := !error + !ddx;
+      if !error > !ddy then begin
+        x := !x + !xstep;
+        error := !error - !ddy;
+        if !error + !errorprev < !ddy then
+          points := (!x - !xstep, !y) :: !points
+        else if !error + !errorprev > !ddy then
+          points := (!x, !y - !ystep) :: !points
+        else ()
+        (* begin *)
+        (*   points := (!x - !xstep, !y) :: !points; *)
+        (*   points := (!x, !y - !ystep) :: !points *)
+        (* end *)
+      end;
+      points := (!x, !y) :: !points;
+      errorprev := !error;
+    done
+  end;
+  !points
+
+(* let covered_cells (x1, y1) (x2, y2) = *)
+(*   let x1 = (float_of_int x1) +. 0.5 in *)
+(*   let y1 = (float_of_int y1) +. 0.5 in *)
+(*   let x2 = (float_of_int x2) +. 0.5 in *)
+(*   let y2 = (float_of_int y2) +. 0.5 in *)
+(*   let dx = x2 -. x1 in *)
+(*   let dy = y2 -. y1 in *)
+(*   let step = if abs_float dx >= abs_float dy then abs_float dx else abs_float dy in *)
+(*   let dx = dx /. step in *)
+(*   let dy = dy /. step in *)
+(*   let x = ref x1 in *)
+(*   let y = ref y1 in *)
+(*   let covered = ref [] in *)
+(*   for i = 0 to (int_of_float step) do *)
+(*     covered := (int_of_float !x, int_of_float !y)::(!covered); *)
+(*     x := !x +. dx; *)
+(*     y := !y +. dy; *)
+(*   done; *)
+(*   !covered *)
 
 let is_transparent world (x, y) =
   try
@@ -476,7 +555,7 @@ let is_traversable world (x, y) =
 
 let is_visible world (x1, y1) (x2, y2) =
   let cells = covered_cells (x1, y1) (x2, y2) in
-  List.exists (is_transparent world) cells
+  List.for_all (is_transparent world) cells
 
 let manipulator_positions worker =
   let (x,y) = worker.position in
