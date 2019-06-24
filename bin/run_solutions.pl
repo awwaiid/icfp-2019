@@ -5,7 +5,7 @@ use warnings;
 use v5.26;
 use Data::Dumper;
 
-my $script = './bots/nearest_with_manips.py';
+my $script = $ARGV[0] // './bots/nearest_with_manips.py';
 opendir my $dir, "./data/" or die "Cannot open directory: $!";
 my @files = readdir $dir;
 closedir $dir;
