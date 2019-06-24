@@ -11,7 +11,7 @@ engine = subprocess.Popen(
   stdin=subprocess.PIPE,
   bufsize=0)
 
-task_json = subprocess.check_output(["bin/parse-task","data/prob-001.desc"],universal_newlines=True)
+task_json = subprocess.check_output(["bin/parse-task","data/prob-003.desc"],universal_newlines=True)
 
 engine.stdin.write(task_json.encode())
 engine.stdin.write(b'\n')
@@ -21,7 +21,7 @@ print(result.decode())
 engine.stdin.write(b'{ "cmd": "get_state" }\n')
 result = engine.stdout.readline()
 state = json.loads(result.decode())
-os.system('clear')
+# os.system('clear')
 print(state['state_string'])
 
 recent = []
@@ -37,16 +37,21 @@ while True:
       engine.stdin.write(json.dumps({ "cmd": "load_state", "state": state }).encode())
       engine.stdin.write(b'\n')
     elif c == "i":
-        engine.stdin.write(json.dumps({ "cmd": "action", "action": "B(2,0)" }).encode())
+        engine.stdin.write(json.dumps({ "cmd": "action", "action": "B(1,2)" }).encode())
+    elif c == "p":
+        engine.stdin.write(json.dumps({ "cmd": "get_path", "target": [3,3] }).encode())
+        result = engine.stdout.readline()
+        print(f"Result: {result}\n")
+        next
     else:
         engine.stdin.write(json.dumps({ "cmd": "action", "action": c.upper() }).encode())
         engine.stdin.write(b'\n')
 
     result = engine.stdout.readline()
-    # print(f"Result: {result}\n")
+    print(f"Result: {result}\n")
     state = json.loads(result.decode())
     recent.append(state)
-    os.system('clear')
+    # os.system('clear')
     print(state['state_string'])
     print('Status: ', state['status'])
     print('Boosters: ', state['boosters'])

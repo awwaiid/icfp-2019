@@ -12,7 +12,7 @@ def manhattan_distance(loc_from, loc_to):
     return abs(loc_from[0] - loc_to[0]) + abs(loc_from[1] - loc_to[1])
 
 def sort_by_distance_from(locs, loc_from):
-    sort(locs, lambda loc: manhattan_distance(loc_from, loc))
+    locs.sort(key = lambda loc: manhattan_distance(loc_from, loc))
 
 def engine_command_raw(engine, command_data):
     engine.stdin.write(command_data.encode())
@@ -39,13 +39,24 @@ def get_path_commands(engine, target):
     data = engine_command(engine, { 'cmd': 'get_path', 'target': target })
     return data["path_commands"]
 
-def get_closest_loc(cur_loc, locs):
-    # print("get_closest_loc", cur_loc, locs)
-    closest_loc = locs.pop(0)
-    for loc in locs:
-        # print(f"Looking at distance for loc {loc} to see if it is less than {closest_loc}")
-        if manhattan_distance(cur_loc, loc) < manhattan_distance(cur_loc, closest_loc):
-            closest_loc = loc
+def get_best_loc(engine, cur_loc, locs, boosters):
+    # print("get_closest loc boosters:", boosters)
+    manips = [booster[0:2] for booster in boosters if booster[2] == "B"]
+    locs = locs + manips
+    # print("locs", locs)
+    sort_by_distance_from(locs, cur_loc)
+    # print("sorted locs", locs)
+
+    locs = locs[0:50]
+    path_lengths = [ len(get_path_commands(engine, loc)) for loc in locs ]
+    # print("path lengths", path_lengths)
+    return locs[ path_lengths.index( min( path_lengths ) ) ]
+
+    # closest_loc = locs.pop(0)
+    # for loc in locs:
+    #     # print(f"Looking at distance for loc {loc} to see if it is less than {closest_loc}")
+    #     if manhattan_distance(cur_loc, loc) < manhattan_distance(cur_loc, closest_loc):
+    #         closest_loc = loc
 
     return closest_loc
 
@@ -85,12 +96,14 @@ if __name__ == "__main__":
     ]
 
     while len(unwrapped) != 0:
-        next_loc = get_closest_loc(cur_loc, unwrapped)
+        next_loc = get_best_loc(engine, cur_loc, unwrapped, data["boosters"])
         path_commands = get_path_commands(engine, next_loc)
         for move in path_commands:
             final_moves.append(move)
             data = engine_command(engine, { "cmd": "action", "action": move})
-            if data["status"] == 'error: Invalid state' : print("####### ERROR: invalid state ######")
+            if data["status"] == 'error: Invalid state':
+                print("####### ERROR: invalid state ######")
+                exit()
             if 'B' in data["inventory"] and len(next_manip_pos) > 0:
                 # attach manipulator, ignore result
                 coords = next_manip_pos.pop(0)
@@ -99,6 +112,7 @@ if __name__ == "__main__":
         # update values now
         unwrapped = data["unwrapped_cells"]
         print(len(unwrapped), file=sys.stderr)
+        print(data["state_string"], file=sys.stderr)
         cur_loc = data["workers"][0]["position"]
 
     print(''.join(final_moves))
