@@ -117,7 +117,7 @@ def move(pos, dir):
     d = json.loads(res.decode())
     queued_pt = nearest
     print("Nearest: " + str(nearest) + " - " + str(nearest_diff) + " Distance: " + str(len(d["path_commands"])))
-    for m in d["path_commands"][0:25]:
+    for m in d["path_commands"][0:random.randrange(15) + 1]:
         queued_moves.append(m)
 
     #print("Queued up: " + str(queued_moves))
@@ -179,22 +179,39 @@ def unpack_state(data):
     global mapList, unwrapped_cells, state_string, current, orientation, boosters, inventory
     mapList = data["map"]
     unwrapped_cells = data["unwrapped_cells"]
-    state_string = data["state_string"]
+    #state_string = data["state_string"]
     current = data["bot_position"]
     orientation = data["workers"][0]["orientation"]
     boosters = data["boosters"]
     inventory = data["inventory"]
 
-
+next_manip_pos = [
+    [1,2],
+    [1,-2],
+    [0,2],
+    [0,-2],
+    [-1,2],
+    [-1,-2],
+    [-1,1],
+    [-1,-1],
+    [-1,0],
+]
 engine.stdin.write(b'{ "cmd": "get_state" }\n')
 result = engine.stdout.readline()
 print(result.decode())
 data = json.loads(result.decode())
 unpack_state(data)
-print(data['state_string'])
+#print(data['state_string'])
 
 print("there are " + str(len(unwrapped_cells)) + " tiles to paint\n")
 while len(moves) < maxmoves:
+
+    if 'B' in inventory and len(next_manip_pos) > 0:
+        coords = next_manip_pos.pop(0)
+        moves.append('B(' + ','.join(map(str, coords)) + ')')
+        engine.stdin.write(('{ "cmd": "action", "action": "B(' + ','.join(map(str, coords)) + ')" }\n').encode())
+        engine.stdout.readline()
+
     rnd += 1
     print("\nMove " + str(len(moves) + 1) + ": " + str(len(unwrapped_cells)) + " left")
     print("Current: " + str(current) + " Facing " + orientation_map[orientation])
@@ -206,7 +223,7 @@ while len(moves) < maxmoves:
 
     result = engine.stdout.readline()
     data = json.loads(result.decode())
-    print(data['state_string'])
+    #print(data['state_string'])
     unpack_state(data)
 
     if data['status'] != 'OK':
